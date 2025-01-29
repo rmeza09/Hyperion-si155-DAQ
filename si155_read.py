@@ -4,6 +4,7 @@ from socket import gaierror
 import numpy as np
 import os
 import h5py
+import time
 from datetime import datetime
 
 class Interrogator():
@@ -63,6 +64,75 @@ class Interrogator():
                 intensity_data = np.concatenate((intensity_data, np.zeros_like(peaks[idx])))
 
         return peak_data, intensity_data
+
+
+class ContinuousDataLogger:
+    def __init__(self, interrogator, sampling_rate=1000, duration=None):
+        """
+        Initialize the continuous data logger.
+
+        :param interrogator: Interrogator object to fetch data
+        :param sampling_rate: Desired sampling rate in Hz
+        :param duration: Optional duration to run the data collection (in seconds). If None, runs indefinitely.
+        """
+        self.interrogator = interrogator
+        self.sampling_rate = sampling_rate
+        self.duration = duration
+        self.data_dir = r"C:\Users\rmeza\Desktop\Hyperion Data Acquisition\DATA"
+        self.start_time = None
+
+        # Ensure the DATA directory exists
+        os.makedirs(self.data_dir, exist_ok=True)
+
+        # Create a new HDF5 file for this session
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        self.filename = os.path.join(self.data_dir, f"hyperion_stream_{timestamp}.h5")
+        self.hdf_file = h5py.File(self.filename, "w")
+
+        # Create datasets for continuous storage with unlimited size
+        self.wavelength_dset = self.hdf_file.create_dataset(
+            "wavelengths", (0, 5), maxshape=(None, 5), dtype="float64"
+        )
+        self.intensity_dset = self.hdf_file.create_dataset(
+            "intensities", (0, 5), maxshape=(None, 5), dtype="float64"
+        )
+
+    def start_logging(self):
+        """Start continuously logging data."""
+        print(f"Starting data collection at {self.sampling_rate} Hz...")
+        self.start_time = time.time()
+        sample_count = 0
+
+        try:
+            while self.duration is None or (time.time() - self.start_time) < self.duration:
+                start_loop = time.time()
+
+                # Collect data from the interrogator
+                peak_data, intensity_data = self.interrogator.getData()
+
+                # Resize datasets to accommodate new data
+                self.wavelength_dset.resize((sample_count + 1, 5))
+                self.intensity_dset.resize((sample_count + 1, 5))
+
+                # Store new data
+                self.wavelength_dset[sample_count, :] = peak_data
+                self.intensity_dset[sample_count, :] = intensity_data
+
+                sample_count += 1
+
+                # Enforce sampling rate
+                elapsed = time.time() - start_loop
+                sleep_time = max(0, (1 / self.sampling_rate) - elapsed)
+                time.sleep(sleep_time)
+
+        except KeyboardInterrupt:
+            print("Data collection manually stopped.")
+
+        finally:
+            self.hdf_file.close()
+            print(f"Data saved in {self.filename}")
+
+
 
 def save_to_hdf5(peak_data, intensity_data):
     # Ensure the DATA directory exists
