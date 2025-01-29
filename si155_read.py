@@ -2,6 +2,9 @@ from hyperion import Hyperion
 from socket import gaierror
 
 import numpy as np
+import os
+import h5py
+from datetime import datetime
 
 class Interrogator():
     def __init__(self, address, timeout: float = 1):
@@ -61,22 +64,38 @@ class Interrogator():
 
         return peak_data, intensity_data
 
+def save_to_hdf5(peak_data, intensity_data):
+    # Ensure the DATA directory exists
+    data_dir = "DATA"
+    if not os.path.exists(data_dir):
+        os.makedirs(data_dir)
+
+    # Generate a unique filename with the current date and time
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    filename = os.path.join(data_dir, f"hyperion_data_{timestamp}.h5")
+
+    # Create HDF5 file and store datasets
+    with h5py.File(filename, "w") as hdf_file:
+        hdf_file.create_dataset("wavelengths", data=peak_data, dtype="float64")
+        hdf_file.create_dataset("intensities", data=intensity_data, dtype="float64")
+
+    print(f"Data successfully saved to {filename}")
 
 
 def main( args=None):
     interrogator = Interrogator("10.0.0.55")
-    print(interrogator.interrogator.is_ready)
-    print(interrogator.is_connected)
-    print(interrogator.num_chs)
+    #print(interrogator.interrogator.is_ready)
+    #print(interrogator.is_connected)
+    #print(interrogator.num_chs)
     peak_data, intensity_data = interrogator.getData()
-    
-    print("Peak Wavelengths:", peak_data)
-    print("Intensities:", intensity_data)
+    save_to_hdf5(peak_data, intensity_data)
+
+    #print("Peak Wavelengths:", peak_data)
+    #print("Intensities:", intensity_data)
     #print(interrogator.getData())
-    print(interrogator.signal_each_ch)
+    #print(interrogator.signal_each_ch)
 
-
-    print(interrogator.total_reading_num)
+    #print(interrogator.total_reading_num)
 
 
 
