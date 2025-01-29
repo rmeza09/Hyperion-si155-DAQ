@@ -1,6 +1,8 @@
 from hyperion import Hyperion
 from socket import gaierror
+
 import numpy as np
+
 class Interrogator():
     def __init__(self, address, timeout: float = 1):
         self.address = address
@@ -30,22 +32,50 @@ class Interrogator():
             self.signal_each_ch[idx-1] = numCHSensors
             self.total_reading_num += numCHSensors
 
-    def getData(self) -> np.ndarray:
-        peaks = self.interrogator.peaks
-        raw_data = []
-        for idx in range( 1, self.num_chs+1 ):
-            raw_data = np.concatenate((raw_data,peaks[idx].astype( np.float64 )))
-        # for
-        return raw_data
+    def getData(self) -> tuple:
+        peaks = self.interrogator.peaks  # Get detected peak wavelengths
+        spectra = self.interrogator.spectra  # Get full spectral intensity data
+
+        peak_data = []
+        intensity_data = []
+
+        for idx in range(1, self.num_chs+1):
+            peak_data = np.concatenate((peak_data, peaks[idx].astype(np.float64)))
+
+            if idx == 3:  # Only process Channel 3
+                full_intensities = self.interrogator.spectra[3]  # Full intensity spectrum for CH3
+                num_points = len(full_intensities)
+
+                # Compute step size based on known spectral range (1510 to 1590 nm)
+                step_size = (1590 - 1510) / (num_points - 1)
+
+                # Find intensity values corresponding to peak wavelengths
+                intensity_data = np.concatenate((
+                    intensity_data,
+                    np.array([
+                        full_intensities[int((peak - 1510) / step_size)] for peak in peaks[3]
+                    ])
+                ))
+            else:
+                intensity_data = np.concatenate((intensity_data, np.zeros_like(peaks[idx])))
+
+        return peak_data, intensity_data
+
+
 
 def main( args=None):
     interrogator = Interrogator("10.0.0.55")
     print(interrogator.interrogator.is_ready)
     print(interrogator.is_connected)
     print(interrogator.num_chs)
-    peaks = interrogator.interrogator.peaks
-    print(interrogator.getData())
+    peak_data, intensity_data = interrogator.getData()
+    
+    print("Peak Wavelengths:", peak_data)
+    print("Intensities:", intensity_data)
+    #print(interrogator.getData())
     print(interrogator.signal_each_ch)
+
+
     print(interrogator.total_reading_num)
 
 
