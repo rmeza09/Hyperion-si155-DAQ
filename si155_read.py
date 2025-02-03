@@ -168,8 +168,6 @@ def main( args=None):
     #print(interrogator.total_reading_num)
 
 
-
-
 if __name__ == "__main__":
     main()
 
