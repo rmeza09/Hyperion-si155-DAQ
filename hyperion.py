@@ -257,7 +257,6 @@ class HCommTCPStreamer(HCommTCPClient):
     async def get_data(self, content_length = None):
         """
         Asynchronously retrieve streaming data, and output the parsed data dictionary.
-
         :param content_length: If not none, then this will avoid the added call to retrieve the read header, and will
         retrieve both the header and the content in a single call.
         :type content_length: int
