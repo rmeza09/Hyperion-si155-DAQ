@@ -65,7 +65,6 @@ class Interrogator():
 
         return peak_data, intensity_data
 
-
 class ContinuousDataLogger:
     def __init__(self, interrogator, sampling_rate=1000, duration=None):
         """
@@ -79,15 +78,20 @@ class ContinuousDataLogger:
         self.sampling_rate = sampling_rate
         self.duration = duration
         self.data_dir = r"C:\Users\rmeza\Desktop\Hyperion Data Acquisition\DATA"
-        self.start_time = None
+        self.start_time = datetime.now()
 
         # Ensure the DATA directory exists
         os.makedirs(self.data_dir, exist_ok=True)
 
         # Create a new HDF5 file for this session
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        timestamp = self.start_time.strftime("%Y-%m-%d_%H-%M-%S")
         self.filename = os.path.join(self.data_dir, f"hyperion_stream_{timestamp}.h5")
         self.hdf_file = h5py.File(self.filename, "w")
+
+        # ---- Add Metadata (Header Information) ----
+        self.hdf_file.attrs["Device"] = "Hyperion SI155"
+        self.hdf_file.attrs["Start Time"] = self.start_time.strftime("%Y-%m-%d %H:%M:%S")
+        self.hdf_file.attrs["Sampling Rate (Hz)"] = self.sampling_rate
 
         # Create datasets for continuous storage with unlimited size
         self.wavelength_dset = self.hdf_file.create_dataset(
@@ -100,11 +104,10 @@ class ContinuousDataLogger:
     def start_logging(self):
         """Start continuously logging data."""
         print(f"Starting data collection at {self.sampling_rate} Hz...")
-        self.start_time = time.time()
         sample_count = 0
 
         try:
-            while self.duration is None or (time.time() - self.start_time) < self.duration:
+            while self.duration is None or (time.time() - self.start_time.timestamp()) < self.duration:
                 start_loop = time.time()
 
                 # Collect data from the interrogator
@@ -131,6 +134,8 @@ class ContinuousDataLogger:
         finally:
             self.hdf_file.close()
             print(f"Data saved in {self.filename}")
+
+
 
 
 
