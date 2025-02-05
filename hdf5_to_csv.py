@@ -1,6 +1,7 @@
 import h5py
 import pandas as pd
 import os
+import numpy as np
 
 def convert_hdf5_to_csv(hdf5_filepath):
     """
@@ -26,7 +27,7 @@ def convert_hdf5_to_csv(hdf5_filepath):
 
     # Create a DataFrame with labeled columns
     df = pd.DataFrame(
-        data=np.hstack((wavelengths, intensities)),
+        data= np.hstack((wavelengths, intensities)),
         columns=[f"FBG_{i+1}_Wavelength" for i in range(wavelengths.shape[1])] +
                 [f"FBG_{i+1}_Intensity" for i in range(intensities.shape[1])]
     )

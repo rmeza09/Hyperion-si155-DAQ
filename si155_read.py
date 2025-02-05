@@ -65,6 +65,7 @@ class Interrogator():
 
         return peak_data, intensity_data
 
+
 class ContinuousDataLogger:
     def __init__(self, interrogator, sampling_rate=1000, duration=None):
         """
@@ -88,7 +89,7 @@ class ContinuousDataLogger:
         self.filename = os.path.join(self.data_dir, f"hyperion_stream_{timestamp}.h5")
         self.hdf_file = h5py.File(self.filename, "w")
 
-        # ---- Add Metadata (Header Information) ----
+        # ---- Add Initial Metadata (Start Time, Sampling Rate) ----
         self.hdf_file.attrs["Device"] = "Hyperion SI155"
         self.hdf_file.attrs["Start Time"] = self.start_time.strftime("%Y-%m-%d %H:%M:%S")
         self.hdf_file.attrs["Sampling Rate (Hz)"] = self.sampling_rate
@@ -132,11 +133,18 @@ class ContinuousDataLogger:
             print("Data collection manually stopped.")
 
         finally:
+            # Log end time and total duration
+            end_time = datetime.now()
+            total_duration = (end_time - self.start_time).total_seconds()
+
+            # Reopen HDF5 file in append mode and add metadata
+            with h5py.File(self.filename, "a") as hdf_file:
+                hdf_file.attrs["End Time"] = end_time.strftime("%Y-%m-%d %H:%M:%S")
+                hdf_file.attrs["Total Duration (s)"] = total_duration
+
             self.hdf_file.close()
             print(f"Data saved in {self.filename}")
-
-
-
+            print(f"Test ended at {end_time.strftime('%Y-%m-%d %H:%M:%S')}, Total duration: {total_duration:.2f} seconds")
 
 
 def save_to_hdf5(peak_data, intensity_data):
