@@ -165,24 +165,20 @@ def save_to_hdf5(peak_data, intensity_data):
     print(f"Data successfully saved to {filename}")
 
 
-def main( args=None):
+def main(args=None):
     interrogator = Interrogator("10.0.0.55")
-    #print(interrogator.interrogator.is_ready)
-    #print(interrogator.is_connected)
-    #print(interrogator.num_chs)
-    peak_data, intensity_data = interrogator.getData()
-    save_to_hdf5(peak_data, intensity_data)
 
-    #print("Peak Wavelengths:", peak_data)
-    #print("Intensities:", intensity_data)
-    #print(interrogator.getData())
-    #print(interrogator.signal_each_ch)
+    # Set desired sampling rate & duration
+    sampling_rate = 5000  # Hz
+    duration = None  # 600 seconds (10 minutes) OR set to None for infinite logging
 
-    #print(interrogator.total_reading_num)
-
+    # Start continuous data logging
+    logger = ContinuousDataLogger(interrogator, sampling_rate=sampling_rate, duration=duration)
+    logger.start_logging()
 
 if __name__ == "__main__":
     main()
+
 
 
 
