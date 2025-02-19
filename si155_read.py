@@ -103,18 +103,34 @@ class ContinuousDataLogger:
         )
 
     def start_logging(self):
-        """Start continuously logging data."""
-        print(f"Starting data collection at {self.sampling_rate} Hz...")
+        """Start continuously logging data with automatic reconnection."""
+        print(f"Collecting data at {self.sampling_rate} Hz...")
         sample_count = 0
 
         try:
             while self.duration is None or (time.time() - self.start_time.timestamp()) < self.duration:
                 start_loop = time.time()
 
-                # Collect data from the interrogator
-                peak_data, intensity_data = self.interrogator.getData()
+                # Attempt data collection with auto-reconnect
+                while True:
+                    try:
+                        peak_data, intensity_data = self.interrogator.getData()
+                        break  # Successful connection, exit loop
+                    except Exception as e:
+                        print(f"⚠️ Connection lost: {e}. Attempting to reconnect...")
 
-                # Resize datasets to accommodate new data
+                        # Keep retrying until it reconnects
+                        while True:
+                            try:
+                                self.interrogator = Interrogator("10.0.0.55")  # Reinitialize connection
+                                if self.interrogator.is_connected:
+                                    print("✅ Reconnected successfully!")
+                                    break  # Exit reconnect loop
+                            except Exception as reconnect_error:
+                                print(f"🔄 Retrying connection... ")
+                                
+
+                # Resize datasets for new data
                 self.wavelength_dset.resize((sample_count + 1, 5))
                 self.intensity_dset.resize((sample_count + 1, 5))
 
@@ -124,26 +140,25 @@ class ContinuousDataLogger:
 
                 sample_count += 1
 
-                # Enforce sampling rate
+                # Maintain sampling rate
                 elapsed = time.time() - start_loop
                 sleep_time = max(0, (1 / self.sampling_rate) - elapsed)
                 time.sleep(sleep_time)
 
         except KeyboardInterrupt:
-            print("Data collection manually stopped.")
+            print("🛑 Data collection manually stopped.")
 
         finally:
-            # Log end time and total duration
             end_time = datetime.now()
             total_duration = (end_time - self.start_time).total_seconds()
 
-            # Reopen HDF5 file in append mode and add metadata
+            # Update metadata in HDF5 file
             with h5py.File(self.filename, "a") as hdf_file:
                 hdf_file.attrs["End Time"] = end_time.strftime("%Y-%m-%d %H:%M:%S")
                 hdf_file.attrs["Total Duration (s)"] = total_duration
 
             self.hdf_file.close()
-            print(f"Data saved in {self.filename}")
+            print(f"📁 Data saved in {self.filename}")
             print(f"Test ended at {end_time.strftime('%Y-%m-%d %H:%M:%S')}, Total duration: {total_duration:.2f} seconds")
 
 
