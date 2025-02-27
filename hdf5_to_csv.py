@@ -42,5 +42,5 @@ def convert_hdf5_to_csv(hdf5_filepath):
 # ----- Run the script for any HDF5 file -----
 if __name__ == "__main__":
     # Manually specify the HDF5 file to convert
-    hdf5_file = input("Enter the path of the HDF5 file to convert: ").strip()
+    hdf5_file = r"C:\Users\rmeza\Desktop\Hyperion Data Acquisition\DATA\hyperion_stream_2025-02-26_18-50-15.h5"
     convert_hdf5_to_csv(hdf5_file)

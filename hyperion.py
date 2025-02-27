@@ -207,8 +207,8 @@ class HCommTCPClient(object):
     def execute_command_synchronously(self, command, argument='', request_options=0):
 
         result = self.loop.run_until_complete(self.execute_command(command, argument, request_options))
-        self.writer = None
-        self.reader = None
+        #self.writer = None
+        #self.reader = None
         return result
 
 
@@ -438,7 +438,7 @@ class HACQSensorData(object):
         header_length = 24
         self.header = HACQSensorData.SensorHeader(*unpack('HBBIQII', streaming_data[:header_length]))
 
-        self.data = np.frombuffer(streaming_data[self.header.header_length:], dtype=np.float)
+        self.data = np.frombuffer(streaming_data[self.header.header_length:], dtype=float)
 
     @classmethod
     def data_parser(cls, streaming_data):
@@ -477,7 +477,7 @@ class HACQPeaksData(object):
 
         self.channel_boundaries = np.cumsum(self._peak_counts)
 
-        self.data = np.frombuffer(raw_data[self.header.length:], dtype=np.float)
+        self.data = np.frombuffer(raw_data[self.header.length:], dtype=float)
 
         channel_start = 0
 
@@ -1194,7 +1194,7 @@ class Hyperion(object):
         """
 
 
-        delays = delays or np.asarray(np.round(2*(np.array(distances, dtype=np.float) *
+        delays = delays or np.asarray(np.round(2*(np.array(distances, dtype=float) *
                                       index_of_refraction/SPEED_OF_LIGHT * 1e9)), dtype=np.int)
 
         count_boundaries = np.asarray(self.convert_wavelengths_to_counts(wavelength_boundaries, delays), dtype=np.int)
@@ -1852,7 +1852,7 @@ class AsyncHyperion(object):
         :rtype: HPeakOffsets
         """
 
-        delays = delays or np.asarray(np.round(2 * (np.array(distances, dtype=np.float) *
+        delays = delays or np.asarray(np.round(2 * (np.array(distances, dtype=float) *
                                                     index_of_refraction / SPEED_OF_LIGHT * 1e9)), dtype=np.int)
 
         count_boundaries = np.asarray(await self.convert_wavelengths_to_counts(wavelength_boundaries, delays), dtype=np.int)
