@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QTableWidget, QTableWidgetItem, QLabel, QPushButton
+from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QTableWidget, QTableWidgetItem, QLabel, QPushButton, QComboBox
 from PyQt6.QtCore import QThread, pyqtSignal
 import pyqtgraph as pg
 import sys
@@ -21,7 +21,7 @@ class HyperionDAQUI(QMainWindow):
 
         # Window Settings
         self.setWindowTitle("Hyperion SI155 DAQ")
-        self.setGeometry(500, 100, 1300, 700)  # Adjusted for better layout
+        self.setGeometry(500, 100, 1400, 800)  # Adjusted for better layout
 
         # Hardcoded number of sensors (for now, later will be dynamic)
         self.num_sensors = 5  # This will later be replaced with a backend call
@@ -46,21 +46,39 @@ class HyperionDAQUI(QMainWindow):
 
         # Left Panel - Sensor Table and Start Button
         left_panel = QVBoxLayout()
-        self.sensor_table = QTableWidget(self.num_sensors, 2)
-        self.sensor_table.setHorizontalHeaderLabels(["Sensor", "Status"])
-        
+        self.sensor_table = QTableWidget(self.num_sensors, 3)
+        self.sensor_table.setHorizontalHeaderLabels(["Sensor", "Status", "CWL (nm)"])
+        self.sensor_table.setFixedWidth(315)  # Ensure full width for table
+
+        # 🔹 Automatically adjust height based on sensor count
+        self.sensor_table.setFixedHeight(min(50 + self.num_sensors * 30, 315))
+
+        # Populate table with sensors and add dropdowns for wavelength selection
         for i in range(self.num_sensors):
             self.sensor_table.setItem(i, 0, QTableWidgetItem(f"FBG {i+1}"))
             self.sensor_table.setItem(i, 1, QTableWidgetItem("🟢 Active"))
+            
+            # Dropdown for selecting center wavelength
+            wavelength_dropdown = QComboBox()
+            wavelength_dropdown.addItems([str(wl) for wl in range(1500, 1600, 5)])
+            self.sensor_table.setCellWidget(i, 2, wavelength_dropdown)
         
         left_panel.addWidget(self.sensor_table)
+        left_panel.addStretch(1) 
+        self.metadata_label = QLabel("Sample #: 0\nFile Size: 0 KB\nElapsed Time: 0s\nDate: --/--/----")
+        self.metadata_label.setStyleSheet("font-size: 16px; font-weight: bold;")
+
+        left_panel.addWidget(self.metadata_label)
+        left_panel.addStretch(1) 
         
         # Start Button
         self.start_button = QPushButton("▶ Start Mock Sampling")
+        self.start_button.setStyleSheet("font-size: 16px; padding: 10px; height: 50px;")  # Make button larger
         self.start_button.clicked.connect(self.start_live_plot)
         left_panel.addWidget(self.start_button)
+
         
-        layout.addLayout(left_panel, 1/3)  # Takes 1/3 of the window width
+        layout.addLayout(left_panel, 1)  # Ensure left panel width respects table width
 
         # Right Panel - Sensor Plots
         right_panel = QVBoxLayout()
@@ -68,24 +86,30 @@ class HyperionDAQUI(QMainWindow):
         self.sensor_plots = []
         self.curves = []  # Store plot curves for updating
 
-        
+        #max_columns = self.num_sensors%max_columns+1  # Set max columns for plots
+       
+
         for i in range(self.num_sensors):
-            column = 1
-            column = column + i//4
+            column = 0
+            column += i//4
             plot = self.plot_widget.addPlot(row=i%4, col=column)
             plot.setTitle(f"FBG Sensor {i+1}")
             plot.setLabel("left", "Wavelength (nm)")
             plot.showGrid(x=True, y=True)
-            plot.setFixedHeight(150)  # Increase height by 1.5x
-            plot.setFixedWidth(400)  # Reduce width by half
+            plot.setFixedHeight(180)  # Increase height
+            plot.setFixedWidth(500)  # Set fixed width
             plot.hideAxis("bottom")  # Remove x-axis labels
+
+            #center_wl = int(self.sensor_table.cellWidget(i, 2).currentText())  # Get selected wavelength
+            #plot.setYRange(center_wl - 5, center_wl + 5)  # Apply ±5 nm limits
+
 
             curve = plot.plot(pen=pg.mkPen(color=(i*50, 100, 255), width=2))  # Create curve
             self.curves.append(curve)
             self.sensor_plots.append(plot)
         
         right_panel.addWidget(self.plot_widget)
-        layout.addLayout(right_panel, 2)  # Takes 2/3 of the window width
+        layout.addLayout(right_panel, 2)  # Ensure right panel width adjusts to plots
 
         self.data_collection_tab.setLayout(layout)
 
