@@ -5,10 +5,7 @@ import time
 
 def mock_sampling():
 
-    h5_filepath = "./DATA/hyperion_stream_2025-02-28_12-46-49.h5"
-
-    # Path to the HDF5 file
-    h5_filepath = "DATA/hyperion_stream_2025-02-28_12-46-49.h5"  # Adjust this to your file path
+    h5_filepath = "./DATA/hyperion_stream_2025-02-28_12-51-06.h5"
 
     # Open the file
     with h5py.File(h5_filepath, "r") as hdf:
