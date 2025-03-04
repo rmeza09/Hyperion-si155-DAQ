@@ -179,7 +179,7 @@ def save_to_hdf5(peak_data, intensity_data):
 
     print(f"Data successfully saved to {filename}")
 
-
+'''
 def main(args=None):
     interrogator = Interrogator("10.0.0.55")
 
@@ -193,7 +193,7 @@ def main(args=None):
 
 if __name__ == "__main__":
     main()
-
+'''
 
 
 
