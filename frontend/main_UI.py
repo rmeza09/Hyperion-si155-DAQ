@@ -1,10 +1,11 @@
-from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QTableWidget, QTableWidgetItem, QLabel, QPushButton, QComboBox
-from PyQt6.QtCore import QThread, pyqtSignal
+from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QTableWidget, QTableWidgetItem, QLabel, QPushButton, QComboBox, QListWidget
+from PyQt6.QtCore import QThread, pyqtSignal, Qt
 import pyqtgraph as pg
 import sys
 import pandas as pd
 import time
 import numpy as np
+import os
 import json
 
 from mock_sampling import mock_sampling  # Import mock data generator
@@ -32,7 +33,7 @@ class HyperionDAQUI(QMainWindow):
         self.num_sensors = 5  # This will later be replaced with a backend call
         self.is_active = False
 
-        self.central_wavelengths = np.zeros(self.num_sensors)  # Default to 1500 nm
+        self.central_wavelengths = self.load_sensor_config()  # Default to 1500 nm
 
         # Main Tab Widget
         self.tabs = QTabWidget()
@@ -75,12 +76,13 @@ class HyperionDAQUI(QMainWindow):
             self.wavelength_dropdowns.append(wavelength_dropdown)
         
         left_panel.addWidget(self.sensor_table)
-        left_panel.addStretch(1) 
+        
 
         self.save_button = QPushButton("Save Sensor Configuration")
         self.save_button.setStyleSheet("font-size: 16px; padding: 10px; height: 50px;")
         self.save_button.clicked.connect(self.save_sensor_config)
         left_panel.addWidget(self.save_button)
+        left_panel.addStretch(1) 
 
         self.metadata_label = QLabel("Sample #: 0\nFile Size: 0 KB\nElapsed Time: 0s\nDate: --/--/----")
         self.metadata_label.setStyleSheet("font-size: 16px; font-weight: bold;")
@@ -128,10 +130,6 @@ class HyperionDAQUI(QMainWindow):
             plot.setFixedHeight(180)  # Increase height
             plot.setFixedWidth(500)  # Set fixed width
             plot.hideAxis("bottom")  # Remove x-axis labels
-
-            #center_wl = int(self.sensor_table.cellWidget(i, 2).currentText())  # Get selected wavelength
-            #plot.setYRange(center_wl - 5, center_wl + 5)  # Apply ±5 nm limits
-
 
             curve = plot.plot(pen=pg.mkPen(color=(i*50, 100, 255), width=2))  # Create curve
             self.curves.append(curve)
@@ -190,9 +188,128 @@ class HyperionDAQUI(QMainWindow):
         for i in range(self.num_sensors):
             self.curves[i].setData(self.time_data[-50:], self.sensor_data[i])
 
+
     def setup_file_handling_tab(self):
-        layout = QVBoxLayout()
+        """Setup the File Handling tab to display collected data files and metadata."""
+        layout = QHBoxLayout()  # Horizontal layout for file list and metadata
+
+        # Left Column - File List
+        left_panel = QVBoxLayout()
+        self.file_list = QListWidget()
+        self.file_list.itemClicked.connect(self.display_file_metadata)  # Event to show metadata
+        label1 = QLabel("📂 Collected HDF5 Files:")
+        left_panel.addWidget(label1)
+        label1.setStyleSheet("font-weight: bold; font-size: 16px;")
+        left_panel.addWidget(self.file_list)
+        
+        # CSV File List
+        self.csv_list = QListWidget()
+        label2 = QLabel("📂 Converted CSV Files:")
+        left_panel.addWidget(label2)
+        label2.setStyleSheet("font-weight: bold; font-size: 16px;")
+        left_panel.addWidget(self.csv_list)
+        
+        layout.addLayout(left_panel, 1)
+
+        # Refresh Button
+        self.refresh_button = QPushButton("🔄 Refresh File List")
+        self.refresh_button.setStyleSheet("font-size: 16px; padding: 8px; height: 50px;")
+        self.refresh_button.clicked.connect(lambda: [self.update_file_list(), self.update_csv_list()])
+        left_panel.addWidget(self.refresh_button)
+        
+        # Right Column - File Metadata and Conversion Button
+        right_panel = QVBoxLayout()
+        right_panel.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.file_metadata_label = QLabel("Select a file to view metadata.")
+        self.file_metadata_label.setAlignment(Qt.AlignmentFlag.AlignTop)
+        label3 = QLabel("📄 File Conversion:")
+        right_panel.addWidget(label3)
+        label3.setStyleSheet("font-weight: bold; font-size: 16px; padding-bottom: 20px;")
+        self.file_metadata_label.setStyleSheet("font-size: 16px; padding-bottom: 20px;")
+        right_panel.addWidget(self.file_metadata_label)
+        
+        # Convert to CSV Button
+        self.convert_button = QPushButton("📄 Convert to CSV")
+        self.convert_button.setStyleSheet("font-size: 16px; padding: 8px; height: 50px;")
+        self.convert_button.clicked.connect(self.convert_selected_hdf5)
+        right_panel.addWidget(self.convert_button)
+        
+        layout.addLayout(right_panel, 1)
+
+        # Populate file lists on startup
+        self.update_file_list()
+        self.update_csv_list()
         self.file_handling_tab.setLayout(layout)
+
+    def update_file_list(self):
+        """Fetch and display all HDF5 files in the DATA folder."""
+        self.file_list.clear()
+        data_folder = "DATA"
+        
+        if not os.path.exists(data_folder):
+            os.makedirs(data_folder)  # Create the folder if it doesn't exist
+
+        files = [f for f in os.listdir(data_folder) if f.endswith(".h5")]
+        
+        if files:
+            self.file_list.addItems(files)
+        else:
+            self.file_list.addItem("No files found")
+
+    def update_csv_list(self):
+        """Fetch and display all CSV files in the DATA/CSV folder."""
+        self.csv_list.clear()
+        csv_folder = "DATA/CSV"
+        
+        if not os.path.exists(csv_folder):
+            os.makedirs(csv_folder)  # Create the CSV folder if it doesn't exist
+
+        files = [f for f in os.listdir(csv_folder) if f.endswith(".csv")]
+        
+        if files:
+            self.csv_list.addItems(files)
+        else:
+            self.csv_list.addItem("No CSV files found")
+
+
+    def display_file_metadata(self, item):
+        """Display metadata for the selected HDF5 file."""
+        file_path = os.path.join("DATA", item.text())
+        if os.path.exists(file_path):
+            file_size = os.path.getsize(file_path) // 1024  # Convert bytes to KB
+            modified_time = time.strftime('%m/%d/%Y %I:%M %p', time.localtime(os.path.getmtime(file_path)))
+            
+            metadata_text = (f"File: {item.text()}\n"
+                            f"Size: {file_size} KB\n"
+                            f"Last Modified: {modified_time}")
+            self.file_metadata_label.setText(metadata_text)
+
+    def convert_selected_hdf5(self):
+        """Convert the selected HDF5 file to CSV and store it in the CSV folder."""
+        selected_item = self.file_list.currentItem()
+        if not selected_item:
+            self.file_metadata_label.setText("No file selected for conversion.")
+            return
+        
+        hdf5_filepath = os.path.join("DATA", selected_item.text())
+        csv_folder = "DATA/CSV"
+        if not os.path.exists(csv_folder):
+            os.makedirs(csv_folder)
+        
+        # Generate CSV file path
+        csv_filepath = os.path.join(csv_folder, selected_item.text().replace(".h5", ".csv"))
+        
+        # Convert the file using the existing backend function
+        from backend.hdf5_to_csv import convert_hdf5_to_csv
+        convert_hdf5_to_csv(hdf5_filepath)
+        
+        # Move the generated CSV file to the CSV folder
+        if os.path.exists(hdf5_filepath.replace(".h5", ".csv")):
+            os.rename(hdf5_filepath.replace(".h5", ".csv"), csv_filepath)
+        
+        self.file_metadata_label.setText(f"Converted and saved: {csv_filepath}")
+        self.update_csv_list()  # Refresh the CSV file list
+
 
     def load_sensor_config(self):
         """Load sensor configuration from a JSON file."""
