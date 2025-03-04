@@ -713,7 +713,12 @@ class Hyperion(object):
 
         self._power_cal = None
 
-        self._loop = loop or asyncio.get_event_loop()
+        # Compatibility with PyQt6 thread handling in the main.py file
+        try:
+            self._loop = loop or asyncio.get_event_loop()
+        except RuntimeError:
+            self._loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self._loop)
 
         self._comm = comm or HCommTCPClient(address, COMMAND_PORT, self._loop)
 

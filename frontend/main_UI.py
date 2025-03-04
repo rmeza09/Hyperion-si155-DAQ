@@ -16,8 +16,7 @@ if backend_path not in sys.path:
 
 # Now backend modules can be imported normally
 from hdf5_to_csv import convert_hdf5_to_csv
-
-from mock_sampling import mock_sampling  # Import mock data generator
+from si155_read import ContinuousDataLogger, Interrogator
 
 CONFIG_FILE = "sensor_array.json"
 
@@ -60,6 +59,7 @@ class HyperionDAQUI(QMainWindow):
         self.setup_file_handling_tab()
 
     def setup_data_collection_tab(self):
+
         layout = QHBoxLayout()  # Horizontal layout to split plots and sensor info
 
         # Left Panel - Sensor Table and Start Button
@@ -154,38 +154,46 @@ class HyperionDAQUI(QMainWindow):
         for i, plot in enumerate(self.sensor_plots):
             plot.setTitle(f"FBG Sensor: {self.central_wavelengths[i]} nm")
 
-
     def start_live_plot(self):
-        """Start the background thread to receive live data."""
+        """Start both data logging (backend) and real-time UI plotting."""
         if not self.is_active:
-
-            # Extract the selected central wavelengths from the dropdowns
+            # Extract selected central wavelengths
             self.central_wavelengths = [
                 int(self.sensor_table.cellWidget(i, 2).currentText()) for i in range(self.num_sensors)
             ]
-            print(f"Selected central wavelengths: {self.central_wavelengths}")  # Debugging output
 
             # Apply Y-axis limits based on selected wavelengths
             for i in range(self.num_sensors):
-                
-                self.sensor_plots[i].setYRange(self.central_wavelengths[i] - 0.5, self.central_wavelengths[i] + 0.5)
+                self.sensor_plots[i].setYRange(self.central_wavelengths[i] - 5, self.central_wavelengths[i] + 5)
 
             self.is_active = True
             self.status_label.setText("🟢 Active")
-            self.time_data = []  # Store timestamps for x-axis
-            self.sensor_data = [[] for _ in range(self.num_sensors)]  # Store sensor readings
 
-            # Initialize the data update thread
-            self.data_thread = DataUpdateThread()
-            self.data_thread.data_updated.connect(self.update_plot)  # Connect signal to UI update
-            self.data_thread.start()  # Start the thread
+            # ✅ Start backend logging
+            self.data_logger = ContinuousDataLogger(self.interrogator, sampling_rate=5000)
+            self.data_thread = QThread()
+            self.data_logger.moveToThread(self.data_thread)
+
+            self.data_thread.started.connect(self.data_logger.start_logging)
+            self.data_thread.start()
+
+            # ✅ Start UI update thread for real-time plotting
+            self.data_update_thread = DataUpdateThread()
+            self.data_update_thread.data_updated.connect(self.update_plot)
+            self.data_update_thread.start()
 
     def stop_live_plot(self):
-        """Stop the background thread and data streaming."""
+        """Stop both data logging and real-time UI updates."""
         if self.is_active and hasattr(self, 'data_thread'):
             self.is_active = False
-            self.status_label.setText("🔴 Stopped") 
-            self.data_thread.terminate()
+            self.status_label.setText("🔴 Stopped")
+            # ✅ Stop backend logging
+            self.data_logger.stop_logging()
+            self.data_thread.quit()
+            self.data_thread.wait()
+            # ✅ Stop UI update thread
+            self.data_update_thread.terminate()
+
 
 
     def update_plot(self, df):

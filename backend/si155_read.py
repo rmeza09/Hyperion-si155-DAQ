@@ -67,7 +67,7 @@ class Interrogator():
 
 
 class ContinuousDataLogger:
-    def __init__(self, interrogator, sampling_rate=1000, duration=None):
+    def __init__(self, interrogator, sampling_rate, duration=None):
         """
         Initialize the continuous data logger.
 
@@ -78,6 +78,7 @@ class ContinuousDataLogger:
         self.interrogator = interrogator
         self.sampling_rate = sampling_rate
         self.duration = duration
+        self.running = False # control flag for knowing if the system is running
         self.data_dir = r"C:\Users\rmeza\Desktop\Hyperion Data Acquisition\DATA"
         self.start_time = datetime.now()
 
@@ -106,29 +107,32 @@ class ContinuousDataLogger:
         """Start continuously logging data with automatic reconnection."""
         print(f"Collecting data at {self.sampling_rate} Hz...")
         sample_count = 0
+        self.running = True  # Set flag to True when logging starts
 
         try:
-            while self.duration is None or (time.time() - self.start_time.timestamp()) < self.duration:
+            while self.running and (self.duration is None or (time.time() - self.start_time.timestamp()) < self.duration):
                 start_loop = time.time()
 
                 # Attempt data collection with auto-reconnect
-                while True:
+                while self.running:  # Ensure we break if stopped
                     try:
                         peak_data, intensity_data = self.interrogator.getData()
                         break  # Successful connection, exit loop
                     except Exception as e:
                         print(f"⚠️ Connection lost: {e}. Attempting to reconnect...")
 
-                        # Keep retrying until it reconnects
-                        while True:
+                        # Keep retrying until it reconnects or is stopped
+                        while self.running:
                             try:
                                 self.interrogator = Interrogator("10.0.0.55")  # Reinitialize connection
                                 if self.interrogator.is_connected:
                                     print("✅ Reconnected successfully!")
                                     break  # Exit reconnect loop
                             except Exception as reconnect_error:
-                                print(f"🔄 Retrying connection... ")
-                                
+                                print(f"🔄 Retrying connection...")
+
+                if not self.running:
+                    break  # Stop logging if flag is False
 
                 # Resize datasets for new data
                 self.wavelength_dset.resize((sample_count + 1, 5))
@@ -149,6 +153,15 @@ class ContinuousDataLogger:
             print("🛑 Data collection manually stopped.")
 
         finally:
+            self.stop_logging()  # Ensure cleanup when stopped
+            
+    def stop_logging(self):
+        """Stops the continuous data logging gracefully."""
+        print("🛑 Stopping data logging...")
+        self.running = False  # Set control flag to False
+
+        # Ensure the HDF5 file is properly closed
+        if self.hdf_file:
             end_time = datetime.now()
             total_duration = (end_time - self.start_time).total_seconds()
 
@@ -161,23 +174,22 @@ class ContinuousDataLogger:
             print(f"📁 Data saved in {self.filename}")
             print(f"Test ended at {end_time.strftime('%Y-%m-%d %H:%M:%S')}, Total duration: {total_duration:.2f} seconds")
 
+    def save_to_hdf5(peak_data, intensity_data):
+        # Ensure the DATA directory exists
+        data_dir = "DATA"
+        if not os.path.exists(data_dir):
+            os.makedirs(data_dir)
 
-def save_to_hdf5(peak_data, intensity_data):
-    # Ensure the DATA directory exists
-    data_dir = "DATA"
-    if not os.path.exists(data_dir):
-        os.makedirs(data_dir)
+        # Generate a unique filename with the current date and time
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        filename = os.path.join(data_dir, f"hyperion_data_{timestamp}.h5")
 
-    # Generate a unique filename with the current date and time
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    filename = os.path.join(data_dir, f"hyperion_data_{timestamp}.h5")
+        # Create HDF5 file and store datasets
+        with h5py.File(filename, "w") as hdf_file:
+            hdf_file.create_dataset("wavelengths", data=peak_data, dtype="float64")
+            hdf_file.create_dataset("intensities", data=intensity_data, dtype="float64")
 
-    # Create HDF5 file and store datasets
-    with h5py.File(filename, "w") as hdf_file:
-        hdf_file.create_dataset("wavelengths", data=peak_data, dtype="float64")
-        hdf_file.create_dataset("intensities", data=intensity_data, dtype="float64")
-
-    print(f"Data successfully saved to {filename}")
+        print(f"Data successfully saved to {filename}")
 
 '''
 def main(args=None):
