@@ -1,12 +1,21 @@
+import sys
+import os
+
 from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QTableWidget, QTableWidgetItem, QLabel, QPushButton, QComboBox, QListWidget
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
 import pyqtgraph as pg
-import sys
 import pandas as pd
 import time
 import numpy as np
-import os
 import json
+
+# Dynamically locate the backend folder and add it to sys.path
+backend_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../backend"))
+if backend_path not in sys.path:
+    sys.path.append(backend_path)
+
+# Now backend modules can be imported normally
+from hdf5_to_csv import convert_hdf5_to_csv
 
 from mock_sampling import mock_sampling  # Import mock data generator
 
@@ -124,8 +133,8 @@ class HyperionDAQUI(QMainWindow):
             column = 0
             column += i//4
             plot = self.plot_widget.addPlot(row=i%4, col=column)
-            plot.setTitle(f"FBG Sensor {i+1}")
-            plot.setLabel("left", "Wavelength (nm)")
+            plot.setTitle(f"FBG Sensor: {self.central_wavelengths[i]} nm")
+            plot.setLabel("left", "Wavelength [nm]")
             plot.showGrid(x=True, y=True)
             plot.setFixedHeight(180)  # Increase height
             plot.setFixedWidth(500)  # Set fixed width
@@ -140,6 +149,12 @@ class HyperionDAQUI(QMainWindow):
 
         self.data_collection_tab.setLayout(layout)
 
+    def update_plot_titles(self):
+        """ Updates the plot titles dynamically based on the saved central wavelengths. """
+        for i, plot in enumerate(self.sensor_plots):
+            plot.setTitle(f"FBG Sensor: {self.central_wavelengths[i]} nm")
+
+
     def start_live_plot(self):
         """Start the background thread to receive live data."""
         if not self.is_active:
@@ -153,7 +168,7 @@ class HyperionDAQUI(QMainWindow):
             # Apply Y-axis limits based on selected wavelengths
             for i in range(self.num_sensors):
                 
-                self.sensor_plots[i].setYRange(self.central_wavelengths[i] - 1, self.central_wavelengths[i] + 1)
+                self.sensor_plots[i].setYRange(self.central_wavelengths[i] - 0.5, self.central_wavelengths[i] + 0.5)
 
             self.is_active = True
             self.status_label.setText("🟢 Active")
@@ -222,7 +237,7 @@ class HyperionDAQUI(QMainWindow):
         right_panel.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.file_metadata_label = QLabel("Select a file to view metadata.")
         self.file_metadata_label.setAlignment(Qt.AlignmentFlag.AlignTop)
-        label3 = QLabel("📄 File Conversion:")
+        label3 = QLabel("📄 File Conversion from HDF5 to CSV:")
         right_panel.addWidget(label3)
         label3.setStyleSheet("font-weight: bold; font-size: 16px; padding-bottom: 20px;")
         self.file_metadata_label.setStyleSheet("font-size: 16px; padding-bottom: 20px;")
@@ -300,7 +315,7 @@ class HyperionDAQUI(QMainWindow):
         csv_filepath = os.path.join(csv_folder, selected_item.text().replace(".h5", ".csv"))
         
         # Convert the file using the existing backend function
-        from backend.hdf5_to_csv import convert_hdf5_to_csv
+        #from backend.hdf5_to_csv import convert_hdf5_to_csv
         convert_hdf5_to_csv(hdf5_filepath)
         
         # Move the generated CSV file to the CSV folder
@@ -328,6 +343,7 @@ class HyperionDAQUI(QMainWindow):
         config = {"central_wavelengths": self.central_wavelengths}
         with open(CONFIG_FILE, "w") as f:
             json.dump(config, f)
+        self.update_plot_titles()  # Update plot titles with new wavelengths
         print("Configuration saved:", config)  # Debugging output
 
 
