@@ -2,6 +2,7 @@ from hyperion import Hyperion
 from socket import gaierror
 
 import numpy as np
+import pandas as pd
 import os
 import h5py
 import time
@@ -173,6 +174,20 @@ class ContinuousDataLogger:
             self.hdf_file.close()
             print(f"📁 Data saved in {self.filename}")
             print(f"Test ended at {end_time.strftime('%Y-%m-%d %H:%M:%S')}, Total duration: {total_duration:.2f} seconds")
+    
+    def get_latest_snapshot(self):
+        """Retrieve the most recent snapshot of wavelength data for UI updates."""
+        try:
+            with h5py.File(self.filename, "r") as hdf:
+                if "wavelengths" in hdf:
+                    last_index = hdf["wavelengths"].shape[0] - 1  # Last recorded row
+                    if last_index >= 0:
+                        latest_wavelengths = hdf["wavelengths"][last_index, :]
+                        return pd.DataFrame({"Wavelength (nm)": latest_wavelengths})
+        except Exception as e:
+            print(f"⚠️ Error retrieving snapshot: {e}")
+        return None  # Return None if no valid data is found
+
 
     def save_to_hdf5(peak_data, intensity_data):
         # Ensure the DATA directory exists

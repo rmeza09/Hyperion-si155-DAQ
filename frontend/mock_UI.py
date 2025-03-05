@@ -31,7 +31,7 @@ class DataUpdateThread(QThread):
             time.sleep(0.1)  # Simulate real-time behavior
 
 class HyperionDAQUI(QMainWindow):
-    def __init__(self):
+    def __init__(self, NumSensors):
         super().__init__()
 
         # Window Settings
@@ -39,7 +39,7 @@ class HyperionDAQUI(QMainWindow):
         self.setGeometry(500, 100, 1400, 800)  # Adjusted for better layout
 
         # Hardcoded number of sensors (for now, later will be dynamic)
-        self.num_sensors = 5  # This will later be replaced with a backend call
+        self.num_sensors = NumSensors  # This will later be replaced with a backend call
         self.is_active = False
 
         self.central_wavelengths = self.load_sensor_config()  # Default to 1500 nm
@@ -349,7 +349,8 @@ class HyperionDAQUI(QMainWindow):
 
 # Run the App
 if __name__ == "__main__":
+    NumSensors = 5
     app = QApplication(sys.argv)
-    window = HyperionDAQUI()
+    window = HyperionDAQUI(NumSensors)
     window.show()
     sys.exit(app.exec())

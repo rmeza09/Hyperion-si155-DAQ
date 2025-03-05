@@ -11,9 +11,12 @@ class InterrogatorThread(QThread):
         super().__init__()
         self.interrogator = None
         self.ip_address = ip_address
+        self.num_sensors = 0  # Default to 0 until updated
 
     def run(self):
         self.interrogator = Interrogator(self.ip_address)
+        peak_data, intensity_data = self.interrogator.getData()
+        self.num_sensors = len(peak_data)
 
 def main():
     
@@ -27,7 +30,7 @@ def main():
     duration = None  # 600 seconds (10 minutes) OR set to None for infinite logging
 
     app = QApplication(sys.argv)  # Initialize PyQt
-    window = HyperionDAQUI()  # Create the UI instance
+    window = HyperionDAQUI(interrogator_thread.num_sensors)  # Create the UI instance
     data_logger = ContinuousDataLogger(interrogator_thread, sampling_rate=sampling_rate, duration=duration)
 
     # Connect UI buttons to backend functions

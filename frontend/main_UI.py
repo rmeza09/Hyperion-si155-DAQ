@@ -24,21 +24,28 @@ class DataUpdateThread(QThread):
     """Separate thread for streaming mock sensor data."""
     data_updated = pyqtSignal(pd.DataFrame)  # Signal to send new data to UI
 
+    def __init__(self, data_logger):
+        super().__init__()
+        self.data_logger = data_logger  # Reference to the data logger
+        self.running = True  # Control flag for stopping the thread
+
     def run(self):
-        for df in mock_sampling():  # Continuously fetch data from mock function
-            self.data_updated.emit(df)  # Emit signal with new data
-            time.sleep(0.1)  # Simulate real-time behavior
+        while self.running:
+            df = self.data_logger.get_latest_snapshot()  # Retrieve a snapshot of recent data
+            if df is not None:
+                self.data_updated.emit(df)  # Emit signal with new data
+            time.sleep(1/60)  # Limit to ~60Hz updates for UI
 
 class HyperionDAQUI(QMainWindow):
-    def __init__(self):
+    def __init__(self, NumSensors):
         super().__init__()
 
         # Window Settings
         self.setWindowTitle("Hyperion SI155 DAQ")
         self.setGeometry(500, 100, 1400, 800)  # Adjusted for better layout
 
-        # Hardcoded number of sensors (for now, later will be dynamic)
-        self.num_sensors = 5  # This will later be replaced with a backend call
+        # Number of sensors in pulled from the length of the peak_data in the Interrogator class
+        self.num_sensors = NumSensors  # passed using the getData() method in the Interrogator class
         self.is_active = False
 
         self.central_wavelengths = self.load_sensor_config()  # Default to 1500 nm
@@ -86,20 +93,22 @@ class HyperionDAQUI(QMainWindow):
         
         left_panel.addWidget(self.sensor_table)
         
-
+        # Save button which stores the current dropdown selections of the sensor array
         self.save_button = QPushButton("Save Sensor Configuration")
         self.save_button.setStyleSheet("font-size: 16px; padding: 10px; height: 50px;")
         self.save_button.clicked.connect(self.save_sensor_config)
+
         left_panel.addWidget(self.save_button)
         left_panel.addStretch(1) 
 
+        # Prints the meta data for the current file being written
         self.metadata_label = QLabel("Sample #: 0\nFile Size: 0 KB\nElapsed Time: 0s\nDate: --/--/----")
         self.metadata_label.setStyleSheet("font-size: 16px; font-weight: bold;")
 
         left_panel.addWidget(self.metadata_label)
         left_panel.addStretch(1) 
         
-        # Status Indicator
+        # Status Indicator shows when the process is active or stopped
         self.status_label = QLabel("🔴 Stopped")
         self.status_label.setStyleSheet("font-size: 24px; font-weight: bold;")
         left_panel.addWidget(self.status_label)
@@ -124,11 +133,9 @@ class HyperionDAQUI(QMainWindow):
         right_panel = QVBoxLayout()
         self.plot_widget = pg.GraphicsLayoutWidget()
         self.sensor_plots = []
-        self.curves = []  # Store plot curves for updating
+        self.curves = []  # Store plot curves for updating   
 
-        #max_columns = self.num_sensors%max_columns+1  # Set max columns for plots
-       
-
+        # displays the plots in column format with maximum 4 plots per column
         for i in range(self.num_sensors):
             column = 0
             column += i//4
@@ -169,7 +176,7 @@ class HyperionDAQUI(QMainWindow):
             self.is_active = True
             self.status_label.setText("🟢 Active")
 
-            # ✅ Start backend logging
+            # Start backend logging
             self.data_logger = ContinuousDataLogger(self.interrogator, sampling_rate=5000)
             self.data_thread = QThread()
             self.data_logger.moveToThread(self.data_thread)
@@ -177,24 +184,31 @@ class HyperionDAQUI(QMainWindow):
             self.data_thread.started.connect(self.data_logger.start_logging)
             self.data_thread.start()
 
-            # ✅ Start UI update thread for real-time plotting
-            self.data_update_thread = DataUpdateThread()
+            # Start UI update thread for real-time plotting
+            self.data_update_thread = DataUpdateThread(self.data_logger)
             self.data_update_thread.data_updated.connect(self.update_plot)
             self.data_update_thread.start()
 
     def stop_live_plot(self):
         """Stop both data logging and real-time UI updates."""
-        if self.is_active and hasattr(self, 'data_thread'):
+        if self.is_active:
             self.is_active = False
             self.status_label.setText("🔴 Stopped")
-            # ✅ Stop backend logging
-            self.data_logger.stop_logging()
-            self.data_thread.quit()
-            self.data_thread.wait()
-            # ✅ Stop UI update thread
-            self.data_update_thread.terminate()
 
+            # Stop backend logging
+            if hasattr(self, 'data_logger'):
+                self.data_logger.stop_logging()
 
+            # Stop backend thread
+            if hasattr(self, 'data_thread'):
+                self.data_thread.quit()
+                self.data_thread.wait()
+
+            # Stop UI update thread properly
+            if hasattr(self, 'data_update_thread'):
+                self.data_update_thread.running = False  # Ensure it exits the loop
+                self.data_update_thread.quit()
+                self.data_update_thread.wait()
 
     def update_plot(self, df):
         """Update the plots with new sensor data."""
