@@ -6,6 +6,8 @@ import pandas as pd
 import os
 import h5py
 import time
+from PyQt6.QtCore import QObject, pyqtSignal
+
 from datetime import datetime
 
 class Interrogator():
@@ -82,6 +84,7 @@ class ContinuousDataLogger:
         self.running = False # control flag for knowing if the system is running
         self.data_dir = r"C:\Users\rmeza\Desktop\Hyperion Data Acquisition\DATA"
         self.start_time = datetime.now()
+        self.latest_snapshot = None  # Store latest sample in memory
 
         # Ensure the DATA directory exists
         os.makedirs(self.data_dir, exist_ok=True)
@@ -109,28 +112,28 @@ class ContinuousDataLogger:
         print(f"Collecting data at {self.sampling_rate} Hz...")
         sample_count = 0
         self.running = True  # Set flag to True when logging starts
+        self.latest_snapshot = None  # Initialize storage for the latest sample
 
         try:
-            while self.running and (self.duration is None or (time.time() - self.start_time.timestamp()) < self.duration):
+            while self.running and (self.duration is None or (time.time() - self.start_time.timestamp() < self.duration)):
                 start_loop = time.time()
 
                 # Attempt data collection with auto-reconnect
-                while self.running:  # Ensure we break if stopped
-                    try:
-                        peak_data, intensity_data = self.interrogator.getData()
-                        break  # Successful connection, exit loop
-                    except Exception as e:
-                        print(f"⚠️ Connection lost: {e}. Attempting to reconnect...")
+                try:
+                    peak_data, intensity_data = self.interrogator.getData()
+                    self.latest_snapshot = peak_data  # Store the latest snapshot in memory
+                except Exception as e:
+                    print(f"⚠️ Connection lost: {e}. Attempting to reconnect...")
 
-                        # Keep retrying until it reconnects or is stopped
-                        while self.running:
-                            try:
-                                self.interrogator = Interrogator("10.0.0.55")  # Reinitialize connection
-                                if self.interrogator.is_connected:
-                                    print("✅ Reconnected successfully!")
-                                    break  # Exit reconnect loop
-                            except Exception as reconnect_error:
-                                print(f"🔄 Retrying connection...")
+                    # Keep retrying until it reconnects or is stopped
+                    while self.running:
+                        try:
+                            self.interrogator = Interrogator("10.0.0.55")  # Reinitialize connection
+                            if self.interrogator.is_connected:
+                                print("✅ Reconnected successfully!")
+                                break  # Exit reconnect loop
+                        except Exception as reconnect_error:
+                            print(f"🔄 Retrying connection...")
 
                 if not self.running:
                     break  # Stop logging if flag is False
@@ -139,7 +142,7 @@ class ContinuousDataLogger:
                 self.wavelength_dset.resize((sample_count + 1, 5))
                 self.intensity_dset.resize((sample_count + 1, 5))
 
-                # Store new data
+                # Store new data in the HDF5 file
                 self.wavelength_dset[sample_count, :] = peak_data
                 self.intensity_dset[sample_count, :] = intensity_data
 
@@ -155,6 +158,13 @@ class ContinuousDataLogger:
 
         finally:
             self.stop_logging()  # Ensure cleanup when stopped
+
+    def get_latest_snapshot(self):
+        """Retrieve the most recent snapshot from memory, instead of reading from HDF5."""
+        if self.latest_snapshot is not None:
+            return pd.DataFrame({"Wavelength (nm)": self.latest_snapshot})
+        return None
+
             
     def stop_logging(self):
         """Stops the continuous data logging gracefully."""
@@ -174,19 +184,6 @@ class ContinuousDataLogger:
             self.hdf_file.close()
             print(f"📁 Data saved in {self.filename}")
             print(f"Test ended at {end_time.strftime('%Y-%m-%d %H:%M:%S')}, Total duration: {total_duration:.2f} seconds")
-    
-    def get_latest_snapshot(self):
-        """Retrieve the most recent snapshot of wavelength data for UI updates."""
-        try:
-            with h5py.File(self.filename, "r") as hdf:
-                if "wavelengths" in hdf:
-                    last_index = hdf["wavelengths"].shape[0] - 1  # Last recorded row
-                    if last_index >= 0:
-                        latest_wavelengths = hdf["wavelengths"][last_index, :]
-                        return pd.DataFrame({"Wavelength (nm)": latest_wavelengths})
-        except Exception as e:
-            print(f"⚠️ Error retrieving snapshot: {e}")
-        return None  # Return None if no valid data is found
 
 
     def save_to_hdf5(peak_data, intensity_data):

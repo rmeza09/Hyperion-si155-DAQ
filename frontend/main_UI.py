@@ -2,7 +2,7 @@ import sys
 import os
 
 from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QTableWidget, QTableWidgetItem, QLabel, QPushButton, QComboBox, QListWidget
-from PyQt6.QtCore import QThread, pyqtSignal, Qt
+from PyQt6.QtCore import QThread, pyqtSignal, Qt, QTimer
 import pyqtgraph as pg
 import pandas as pd
 import time
@@ -19,34 +19,42 @@ from hdf5_to_csv import convert_hdf5_to_csv
 from si155_read import ContinuousDataLogger, Interrogator
 
 CONFIG_FILE = "sensor_array.json"
-
+'''
 class DataUpdateThread(QThread):
-    """Separate thread for streaming mock sensor data."""
-    data_updated = pyqtSignal(pd.DataFrame)  # Signal to send new data to UI
+    data_updated = pyqtSignal(pd.DataFrame)
 
     def __init__(self, data_logger):
         super().__init__()
-        self.data_logger = data_logger  # Reference to the data logger
-        self.running = True  # Control flag for stopping the thread
+        self.data_logger = data_logger
+        self.running = True  # Control flag
 
     def run(self):
         while self.running:
-            df = self.data_logger.get_latest_snapshot()  # Retrieve a snapshot of recent data
+            df = self.data_logger.get_latest_snapshot()  # Get the latest in-memory data
             if df is not None:
-                self.data_updated.emit(df)  # Emit signal with new data
-            time.sleep(1/60)  # Limit to ~60Hz updates for UI
+                self.data_updated.emit(df)
+            time.sleep(1/60)  # 60Hz update rate
+'''
+
 
 class HyperionDAQUI(QMainWindow):
-    def __init__(self, NumSensors):
+    def __init__(self, interrogator):
         super().__init__()
+        self.interrogator = interrogator  # Store interrogator instance
+        self.num_sensors = len(interrogator.getData()[0])  # Get number of sensors
 
         # Window Settings
         self.setWindowTitle("Hyperion SI155 DAQ")
         self.setGeometry(500, 100, 1400, 800)  # Adjusted for better layout
 
         # Number of sensors in pulled from the length of the peak_data in the Interrogator class
-        self.num_sensors = NumSensors  # passed using the getData() method in the Interrogator class
+        self.num_sensors = 5  # passed using the getData() method in the Interrogator class
         self.is_active = False
+
+        self.time_data = []  # Initialize empty list for timestamps
+        self.time_counter = 0  # Initialize counter for time
+        self.sensor_data = [[] for _ in range(self.num_sensors)]  # Initialize empty lists for each sensor
+
 
         self.central_wavelengths = self.load_sensor_config()  # Default to 1500 nm
 
@@ -162,32 +170,25 @@ class HyperionDAQUI(QMainWindow):
             plot.setTitle(f"FBG Sensor: {self.central_wavelengths[i]} nm")
 
     def start_live_plot(self):
-        """Start both data logging (backend) and real-time UI plotting."""
+        """Start both data logging and real-time UI plotting."""
         if not self.is_active:
-            # Extract selected central wavelengths
-            self.central_wavelengths = [
-                int(self.sensor_table.cellWidget(i, 2).currentText()) for i in range(self.num_sensors)
-            ]
-
-            # Apply Y-axis limits based on selected wavelengths
-            for i in range(self.num_sensors):
-                self.sensor_plots[i].setYRange(self.central_wavelengths[i] - 5, self.central_wavelengths[i] + 5)
-
             self.is_active = True
             self.status_label.setText("🟢 Active")
 
-            # Start backend logging
+            # Start backend data logging in a separate thread
             self.data_logger = ContinuousDataLogger(self.interrogator, sampling_rate=5000)
             self.data_thread = QThread()
             self.data_logger.moveToThread(self.data_thread)
 
+            # Ensure logging starts and stops correctly
             self.data_thread.started.connect(self.data_logger.start_logging)
             self.data_thread.start()
 
-            # Start UI update thread for real-time plotting
-            self.data_update_thread = DataUpdateThread(self.data_logger)
-            self.data_update_thread.data_updated.connect(self.update_plot)
-            self.data_update_thread.start()
+            # Start UI update timer (calls update_plot every ~16ms for ~60Hz updates)
+            self.update_timer = QTimer()
+            self.update_timer.timeout.connect(self.update_plot)
+            self.update_timer.start(1000 // 60)  # 60Hz refresh rate
+
 
     def stop_live_plot(self):
         """Stop both data logging and real-time UI updates."""
@@ -195,35 +196,49 @@ class HyperionDAQUI(QMainWindow):
             self.is_active = False
             self.status_label.setText("🔴 Stopped")
 
-            # Stop backend logging
+            # 🛑 Stop backend logging
             if hasattr(self, 'data_logger'):
                 self.data_logger.stop_logging()
 
-            # Stop backend thread
+            # Ensure backend thread stops properly
             if hasattr(self, 'data_thread'):
                 self.data_thread.quit()
                 self.data_thread.wait()
 
-            # Stop UI update thread properly
-            if hasattr(self, 'data_update_thread'):
-                self.data_update_thread.running = False  # Ensure it exits the loop
-                self.data_update_thread.quit()
-                self.data_update_thread.wait()
+            # Stop UI update timer
+            if hasattr(self, 'update_timer'):
+                self.update_timer.stop()
 
-    def update_plot(self, df):
-        """Update the plots with new sensor data."""
-        self.time_data.append(time.time())  # Append new timestamp
+
+
+    def update_plot(self):
+        """Fetch the latest data from the logger and update plots."""
+        df = self.data_logger.get_latest_snapshot()
+        #print(df)  # Debugging statement
+
+        if df is None:
+            return  # No new data
+
+        # Incremental timestamp instead of `time.time()`
+        self.time_data.append(self.time_counter)
+        self.time_counter += 1  # Increment counter
 
         for i in range(self.num_sensors):
             self.sensor_data[i].append(df["Wavelength (nm)"][i])  # Append new data point
-            
+
             # Keep only the last 50 points for smooth plotting
             if len(self.sensor_data[i]) > 50:
                 self.sensor_data[i].pop(0)
 
+        # Keep only the last 50 timestamps
+        if len(self.time_data) > 50:
+            self.time_data.pop(0)
+
         # Update plots dynamically
         for i in range(self.num_sensors):
             self.curves[i].setData(self.time_data[-50:], self.sensor_data[i])
+
+
 
 
     def setup_file_handling_tab(self):
@@ -279,30 +294,41 @@ class HyperionDAQUI(QMainWindow):
         self.file_handling_tab.setLayout(layout)
 
     def update_file_list(self):
-        """Fetch and display all HDF5 files in the DATA folder."""
+        """Fetch and display all HDF5 files in the DATA folder, sorted newest first."""
         self.file_list.clear()
         data_folder = "DATA"
-        
+
         if not os.path.exists(data_folder):
             os.makedirs(data_folder)  # Create the folder if it doesn't exist
 
-        files = [f for f in os.listdir(data_folder) if f.endswith(".h5")]
-        
+        # Get HDF5 files sorted by modification time (newest first)
+        files = sorted(
+            [f for f in os.listdir(data_folder) if f.endswith(".h5")],
+            key=lambda f: os.path.getmtime(os.path.join(data_folder, f)),
+            reverse=True  # Sort newest files first
+        )
+
         if files:
             self.file_list.addItems(files)
         else:
             self.file_list.addItem("No files found")
 
+
     def update_csv_list(self):
-        """Fetch and display all CSV files in the DATA/CSV folder."""
+        """Fetch and display all CSV files in the DATA/CSV folder, sorted newest first."""
         self.csv_list.clear()
         csv_folder = "DATA/CSV"
-        
+
         if not os.path.exists(csv_folder):
             os.makedirs(csv_folder)  # Create the CSV folder if it doesn't exist
 
-        files = [f for f in os.listdir(csv_folder) if f.endswith(".csv")]
-        
+        # Get CSV files sorted by modification time (newest first)
+        files = sorted(
+            [f for f in os.listdir(csv_folder) if f.endswith(".csv")],
+            key=lambda f: os.path.getmtime(os.path.join(csv_folder, f)),
+            reverse=True  # Sort newest files first
+        )
+
         if files:
             self.csv_list.addItems(files)
         else:
