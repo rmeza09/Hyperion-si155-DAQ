@@ -37,8 +37,11 @@ class Interrogator():
             self.total_reading_num += numCHSensors
 
     def getData(self) -> tuple:
+        start_time = time.time()  # Track start time
         peaks = self.interrogator.peaks  # Get detected peak wavelengths
-        spectra = self.interrogator.spectra  # Get full spectral intensity data
+        #spectra = self.interrogator.spectra  # Get full spectral intensity data
+        elapsed = time.time() - start_time  # Compute execution time
+        print(f"getData() execution time: {elapsed:.6f} sec") 
 
         peak_data = []
         intensity_data = []
@@ -67,7 +70,7 @@ class Interrogator():
 
 
 class ContinuousDataLogger:
-    def __init__(self, interrogator, sampling_rate=1000, duration=None):
+    def __init__(self, interrogator, sampling_rate=100000, duration=None):
         """
         Initialize the continuous data logger.
 
