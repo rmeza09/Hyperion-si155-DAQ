@@ -256,7 +256,7 @@ async def main():
 
     # Set desired sampling rate & duration
     sampling_rate = 5000  # Hz
-    duration = None  # 600 seconds (10 minutes) OR set to None for infinite logging
+    duration = None  # 600 seco nds (10 minutes) OR set to None for infinite logging
 
     # Start continuous data logging
     logger = ContinuousDataLogger(interrogator, sampling_rate=sampling_rate, duration=duration)
