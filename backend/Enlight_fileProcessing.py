@@ -199,7 +199,7 @@ for k in range(0, numSensors):
     # Plot impact windows
     fig, axis = plt.subplots(2, 5, figsize=(18, 6))
     sensor_wavelength = np.round(impacts_vibe[0, 0]).astype(int)
-    fig.suptitle(f"Center Wavelength: {sensor_wavelength}", fontsize=16)
+    fig.suptitle(f"Center Wavelength: {sensor_wavelength}nm", fontsize=16)
     for i in range(impacts_vibe.shape[1]):
         row = i // 5
         col = i % 5
@@ -226,24 +226,69 @@ for k in range(0, numSensors):
     # Stack the FFT results into a 2D array (shape: [500, 10])
     fft_power = np.column_stack(fft_power)
     fft_freq = np.column_stack(fft_freq)
-    #print(fft_results.shape)  # Should print (500, 10)
+
+    extractedPeaks = []
+    for p in range(fft_power.shape[1]):  # Iterate over each column (impact)
+        peaks, _ = find_peaks(fft_power[:, p], prominence=0.4)  # Find peaks in the power spectrum
+        if len(peaks) < 6:
+            peaks = np.pad(peaks, (0, 6 - len(peaks)), constant_values=0)
+        extractedPeaks.append(fft_freq[peaks[:6], p])  # Match peaks to frequencies
+    extractedPeaks = np.column_stack(extractedPeaks).T  # Stack the extracted peaks into a 2D array
+    print(extractedPeaks.shape)
+
+
+    # Create a figure and axis (we'll hide the axis)
+    fig, ax = plt.subplots()
+    ax.axis('tight')
+    ax.axis('off')
+
+    # set column and row labels
+    #columns = [f"Num: {i+1}" for i in range(extractedPeaks.shape[1])]
+    rows = [f"PS Analysis: {i+1}" for i in range(extractedPeaks.shape[0])]
+
+    # Create the table
+    table = ax.table(
+        cellText=np.round(extractedPeaks, 2),
+        rowLabels=rows,
+        #colLabels=columns,
+        cellLoc='center',
+        loc='center'
+    )
+
+    table.auto_set_font_size(False)
+    table.set_fontsize(10)
+    table.scale(1.2, 1.2)
+
+    plt.tight_layout()
+
+
+    
+    #print(fft_power.shape)
+    #print(fft_freq.shape)
+
+    #print(fft_freq)
 
     fig, axis = plt.subplots(2, 5, figsize=(18, 6))
     sensor_wavelength = np.round(impacts_vibe[0, 0]).astype(int)
-    fig.suptitle(f"Center Wavelength: {sensor_wavelength}", fontsize=16)
+    fig.suptitle(f"Center Wavelength: {sensor_wavelength}nm", fontsize=16)
     for m in range(fft_power.shape[1]):
         row = m // 5
         col = m % 5
+        ax = axis[row, col]
         axis[row, col].plot(fft_freq[:, m], fft_power[:, m]) 
-        axis[row, col].set_title(f"Power Spectrum {i+1}")
+        axis[row, col].set_title(f"Power Spectrum {m+1}")
         axis[row, col].set_xlabel("Frequency (Hz)")
         axis[row, col].set_ylabel("Power")
         axis[row, col].grid(True)
+
+        peaks, _ = find_peaks(fft_power[:, m], prominence=0.4)
+        selected_peaks = peaks[:6]  # Select up to the first 6 peaks
+        ax.scatter(fft_freq[selected_peaks, m], fft_power[selected_peaks, m], color='red', label="Reported Peaks")
+
         # Disable scientific notation
         formatter = ScalarFormatter(useMathText=False)
         formatter.set_scientific(False)
         formatter.set_useOffset(False)
-        ax = axis[row, col]
         ax.yaxis.set_major_formatter(formatter)
     plt.tight_layout()
 
