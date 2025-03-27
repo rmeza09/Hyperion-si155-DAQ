@@ -152,15 +152,6 @@ def single_fft_analysis(signal: np.ndarray, time: np.ndarray, plot_title: str = 
     positive_freqs = freq_vector[:n // 2]
     positive_power = power_spectrum[:n // 2]
 
-    #plt.figure(figsize=(10, 4))
-    #plt.plot(positive_freqs, positive_power)
-    #plt.xlabel('Frequency (Hz)')
-    #plt.ylabel('Power')
-    #plt.title(plot_title)
-    #plt.grid(True)
-    #plt.tight_layout()
-    #plt.show()
-
     return positive_freqs, positive_power
 
 
@@ -229,13 +220,12 @@ for k in range(0, numSensors):
 
     extractedPeaks = []
     for p in range(fft_power.shape[1]):  # Iterate over each column (impact)
-        peaks, _ = find_peaks(fft_power[:, p], prominence=0.4)  # Find peaks in the power spectrum
+        peaks, _ = find_peaks(fft_power[:, p], prominence=0.3, distance=25)  # Find peaks in the power spectrum
         if len(peaks) < 6:
             peaks = np.pad(peaks, (0, 6 - len(peaks)), constant_values=0)
         extractedPeaks.append(fft_freq[peaks[:6], p])  # Match peaks to frequencies
     extractedPeaks = np.column_stack(extractedPeaks).T  # Stack the extracted peaks into a 2D array
-    print(extractedPeaks.shape)
-
+    #print(extractedPeaks.shape)
 
     # Create a figure and axis (we'll hide the axis)
     fig, ax = plt.subplots()
@@ -281,7 +271,7 @@ for k in range(0, numSensors):
         axis[row, col].set_ylabel("Power")
         axis[row, col].grid(True)
 
-        peaks, _ = find_peaks(fft_power[:, m], prominence=0.4)
+        peaks, _ = find_peaks(fft_power[:, m], prominence=0.3, distance=25)
         selected_peaks = peaks[:6]  # Select up to the first 6 peaks
         ax.scatter(fft_freq[selected_peaks, m], fft_power[selected_peaks, m], color='red', label="Reported Peaks")
 
