@@ -10,8 +10,8 @@ from FFT_Analysis_Functions import fileReader, extract_impacts, apply_hamming_co
 filePathVibe = './DATA/ENLIGHT/Peaks.20250325154128_VibeTest.txt'
 filePathTemp = './DATA/ENLIGHT/Peaks.20250325154942_TempTest.txt'
 
-dfVibe, timeSpanV, samplingFreqV = fileReader(filePathVibe, False)
-dfTemp, timeSpanT, samplingFreqT = fileReader(filePathTemp, True)
+dfVibe, timeSpanV, samplingFreqV = fileReader(filePathVibe, False, True)
+dfTemp, timeSpanT, samplingFreqT = fileReader(filePathTemp, True, True)
 
 #print(dfVibe.iloc[:, 0])
 test = np.array(dfVibe.iloc[:, 0])
@@ -61,7 +61,7 @@ for k in range(0, numSensors):
     fft_power = []
     fft_freq = []
     for i in range(correctedSignal.shape[1]):
-        freq, power = single_fft_analysis(correctedSignal[:, i], window_time, plot_title=f"Impact {i+1}")
+        freq, power = single_fft_analysis(correctedSignal[:, i], window_time)
         fft_power.append(power)
         fft_freq.append(freq)
     # Stack the FFT results into a 2D array (shape: [500, 10])

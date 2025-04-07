@@ -5,7 +5,7 @@ from scipy.signal import find_peaks, windows, welch
 from matplotlib.ticker import ScalarFormatter
 
 
-def fileReader(filePath, flip):
+def fileReader(filePath, flip, plot):
     
     df = pd.read_csv(filePath, skiprows=45, sep='\s+')
 
@@ -28,36 +28,38 @@ def fileReader(filePath, flip):
     print("Time Span: ", timespan)
     print('Number of Samples: ', dims[0], '\n')
 
-    fig, axis = plt.subplots(3, 2, figsize=(12, 8))  # 3 rows, 2 columns
+    if plot:
 
-    for i in range(0, dims[1]):
-        row = i // 2
-        col = i % 2
-        data = sensorWL.iloc[:, i]
+        fig, axis = plt.subplots(3, 2, figsize=(12, 8))  # 3 rows, 2 columns
 
-        if i % 2 == 1 and flip:
-            data *= -1
+        for i in range(0, dims[1]):
+            row = i // 2
+            col = i % 2
+            data = sensorWL.iloc[:, i]
 
-        ax = axis[row, col]
-        ax.plot(time_in_seconds, data)
-        ax.set_xlabel('Time (s)')
-        ax.set_ylabel('Center Wavelength (nm)')
-        ax.set_title('Wavelength Change vs Time')
-        ax.grid(True)
-        # Disable scientific notation
-        formatter = ScalarFormatter(useMathText=False)
-        formatter.set_scientific(False)
-        formatter.set_useOffset(False)
+            if i % 2 == 1 and flip:
+                data *= -1
 
-        ax.yaxis.set_major_formatter(formatter)
+            ax = axis[row, col]
+            ax.plot(time_in_seconds, data)
+            ax.set_xlabel('Time (s)')
+            ax.set_ylabel('Center Wavelength (nm)')
+            ax.set_title('Wavelength Change vs Time')
+            ax.grid(True)
+            # Disable scientific notation
+            formatter = ScalarFormatter(useMathText=False)
+            formatter.set_scientific(False)
+            formatter.set_useOffset(False)
 
-     
+            ax.yaxis.set_major_formatter(formatter)
 
-    # Optional: hide unused subplot (bottom right one)
-    if dims[1] < 6:
-        axis[2, 1].axis('off')
+        
 
-    plt.tight_layout()
+        # Optional: hide unused subplot (bottom right one)
+        if dims[1] < 6:
+            axis[2, 1].axis('off')
+
+        plt.tight_layout()
 
     #print(sensorWL.head())
     #print(time_in_seconds.head())
@@ -124,8 +126,9 @@ def apply_hamming_correction(signal, time) -> np.ndarray:
     time = np.array(time)
 
     n_samples = len(signal)
-    fs = n_samples / (time[-1] - time[0])
-    hamming_window = 0.54 - 0.46 * np.cos(2 * np.pi * time * fs)
+    n = np.arange(n_samples)
+    hamming_window = 0.54 - 0.46 * np.cos(2 * np.pi * n / (n_samples - 1))
+
 
     k1 = np.sum(hamming_window * signal) / np.sum(hamming_window)
     k2 = np.sqrt(n_samples / np.sum(hamming_window ** 2))
@@ -134,7 +137,7 @@ def apply_hamming_correction(signal, time) -> np.ndarray:
     return corrected_signal
 
 
-def single_fft_analysis(signal: np.ndarray, time: np.ndarray, plot_title: str = "FFT Result"):
+def single_fft_analysis(signal: np.ndarray, time: np.ndarray):
     """
     Applies FFT to a corrected signal and plots the result.
     """
