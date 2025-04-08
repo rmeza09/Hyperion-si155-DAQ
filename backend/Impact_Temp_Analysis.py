@@ -23,6 +23,7 @@ test = np.array(dfVibe.iloc[:, 0])
 #impacts_vibe = extract_impacts(dfVibe.iloc[:, 0], timeSpanV)
 #print(impacts_vibe.shape)
 numSensors = 5
+allCollectedPeaks = np.zeros((numSensors*10, 6))  # Initialize a 2D array to store the collected peaks
 
 for k in range(0, numSensors):
 
@@ -76,6 +77,11 @@ for k in range(0, numSensors):
         extractedPeaks.append(fft_freq[peaks[:6], p])  # Match peaks to frequencies
     extractedPeaks = np.column_stack(extractedPeaks).T  # Stack the extracted peaks into a 2D array
     #print(extractedPeaks.shape)
+
+    start_row = k * 10
+    end_row = start_row + 10
+    allCollectedPeaks[start_row:end_row, :] = extractedPeaks
+
 
     # Create a figure and axis (we'll hide the axis)
     fig, ax = plt.subplots()
@@ -131,6 +137,13 @@ for k in range(0, numSensors):
         formatter.set_useOffset(False)
         ax.yaxis.set_major_formatter(formatter)
     plt.tight_layout()
+
+#print(allCollectedPeaks)
+
+# Save all collected peaks to CSV for Excel use
+output_path = "./DATA/CSV/allCollectedPeaks.csv"
+np.savetxt(output_path, allCollectedPeaks, delimiter=",", fmt="%.2f")
+print(f"Saved all collected peaks to '{output_path}'")
 
 
 
