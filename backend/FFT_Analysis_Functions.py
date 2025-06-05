@@ -5,22 +5,29 @@ from scipy.signal import find_peaks, windows, welch
 from matplotlib.ticker import ScalarFormatter
 
 
-def fileReader(filePath, flip, plot):
-    
+def fileReader(filePath, flip, plot, start_trim=0): 
+    import pandas as pd
+    import matplotlib.pyplot as plt
+    from matplotlib.ticker import ScalarFormatter
+
     df = pd.read_csv(filePath, skiprows=45, sep='\s+')
 
-    #print(df.head())
     date = df.iloc[0, 0]
     sensorWL = df.iloc[:, -5:]
     dims = sensorWL.shape
     time = pd.to_datetime(df.iloc[:, 1], format='%H:%M:%S.%f')
 
-    # Convert the datetime to seconds since the start of the time series
+    # Convert to seconds
     time_in_seconds = (time - time.iloc[0]).dt.total_seconds()
 
-    # Replace the original time variable with the numerical version
+    # Apply trimming
+    keep_idx = time_in_seconds >= start_trim
+    time_in_seconds = time_in_seconds[keep_idx].reset_index(drop=True)
+    sensorWL = sensorWL[keep_idx.values].reset_index(drop=True)
+    dims = sensorWL.shape  # Update dims after trimming
+
     timespan = time_in_seconds.iloc[-1] - time_in_seconds.iloc[0]
-    samplingFreq = dims[0] / timespan
+    samplingFreq = dims[0] / timespan if timespan > 0 else float('inf')
 
     print('File Name: ', filePath[15:])
     print('Date Acquired: ', date)
@@ -29,10 +36,9 @@ def fileReader(filePath, flip, plot):
     print('Number of Samples: ', dims[0], '\n')
 
     if plot:
-
         fig, axis = plt.subplots(3, 2, figsize=(12, 8))  # 3 rows, 2 columns
 
-        for i in range(0, dims[1]):
+        for i in range(dims[1]):
             row = i // 2
             col = i % 2
             data = sensorWL.iloc[:, i]
@@ -46,24 +52,38 @@ def fileReader(filePath, flip, plot):
             ax.set_ylabel('Center Wavelength (nm)')
             ax.set_title('Wavelength Change vs Time')
             ax.grid(True)
-            # Disable scientific notation
             formatter = ScalarFormatter(useMathText=False)
             formatter.set_scientific(False)
             formatter.set_useOffset(False)
-
             ax.yaxis.set_major_formatter(formatter)
 
-        
-
-        # Optional: hide unused subplot (bottom right one)
         if dims[1] < 6:
             axis[2, 1].axis('off')
 
         plt.tight_layout()
 
-    #print(sensorWL.head())
-    #print(time_in_seconds.head())
     return sensorWL, time_in_seconds, samplingFreq
+
+def read_window(filePath, start_sec, end_sec):
+    import pandas as pd
+
+    df = pd.read_csv(filePath, skiprows=45, sep='\s+')
+
+    # Get the wavelength data (last 5 columns assumed)
+    sensorWL = df.iloc[:, -5:]
+
+    # Extract and convert time to seconds
+    time = pd.to_datetime(df.iloc[:, 1], format='%H:%M:%S.%f')
+    time_in_seconds = (time - time.iloc[0]).dt.total_seconds()
+
+    # Select time window
+    mask = (time_in_seconds >= start_sec) & (time_in_seconds <= end_sec)
+    time_window = time_in_seconds[mask].reset_index(drop=True)
+    sensorWL_window = sensorWL[mask.values].reset_index(drop=True)
+
+    return sensorWL_window, time_window
+
+
 
 def extract_impacts(data, time, window_sec=0.2, n_peaks=10):
     """

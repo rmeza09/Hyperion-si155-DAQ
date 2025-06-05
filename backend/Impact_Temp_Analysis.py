@@ -150,7 +150,7 @@ def processFBGData(dfVibe, timeSpanV, samplingFreqV):
 #filePathVibe = './DATA/ENLIGHT/Peaks.20250409150553.txt' # Center impacts zone 5
 # filePathVibe = './DATA/ENLIGHT/Peaks.20250409151137.txt' # Bottom Left corner impacts zone 7
 # filePathVibe = './DATA/ENLIGHT/Peaks.20250409151742.txt' # Mid-line left impacts zone 4
-filePathVibe = './DATA/ENLIGHT/Peaks.20250409152243.txt' # Bottom Center-line impacts zone 8
+filePathVibe = './DATA/ENLIGHT/Peaks.20250320140346.txt' # Bottom Center-line impacts zone 8
 #filePathTemp = './DATA/ENLIGHT/Peaks.20250325154942_TempTest.txt'
 
 dfVibe, timeSpanV, samplingFreqV = fileReader(filePathVibe, False, True)
