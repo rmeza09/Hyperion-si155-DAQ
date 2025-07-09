@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.signal import find_peaks, windows, welch
+from scipy.signal import find_peaks, windows, welch, detrend
 from matplotlib.ticker import ScalarFormatter
 
 from FFT_Analysis_Functions import fileReader, read_window, extract_impacts, apply_hamming_correction, single_fft_analysis
@@ -12,13 +12,64 @@ from FFT_Analysis_Functions import fileReader, read_window, extract_impacts, app
 filePathVibe = './DATA/ENLIGHT/LaRC_test8_run0030.txt'
 #filePathTemp = './DATA/ENLIGHT/Peaks.20250325154942_TempTest.txt'
 
+import os
+
+# Save location: your system's Downloads folder (cross-platform)
+downloads_path = os.path.join(os.path.expanduser("~"), "Downloads")
+
+
+
 dfVibe, timeSpanV, samplingFreqV = fileReader(filePathVibe, False, True, start_trim=125)
 
-sensorWL_window, time_window = read_window(filePathVibe, start_sec=125, end_sec=135)
-positive_freqs, positive_power = single_fft_analysis(sensorWL_window, time_window)
+startTime = 125;
 
-plt.figure()
-plt.plot(positive_freqs, positive_power)
+for i in range(0, 25):
+    currentTime = startTime + i   
+    sensorWL_window, time_window = read_window(filePathVibe, start_sec=currentTime, end_sec=currentTime+1)
+
+    print(sensorWL_window)
+    print(time_window)
+
+    # Assuming df has 5 columns: df.columns = ['A', 'B', 'C', 'D', 'E']
+    fig, axes = plt.subplots(nrows=3, ncols=2, figsize=(10, 10))  # 3x2 layout
+    axes = axes.flatten()  # Flatten the 2D axes array for easy iteration
+    fig.suptitle(f"Signal Detrending for Time Snip at t = {currentTime} to {currentTime+1}", fontsize=16)
+
+    for i, col in enumerate(sensorWL_window.columns):
+        axes[i].plot(detrend(sensorWL_window[col]))
+        axes[i].set_title(col)
+
+    # Hide the unused 6th subplot
+    if len(sensorWL_window.columns) < 6:
+        axes[-1].axis('off')
+
+    fig, ax = plt.subplots(nrows=3, ncols=2, figsize=(12, 10))  # 3x2 layout
+    ax = ax.flatten()  # Flatten to make it easier to iterate
+    fig.suptitle("Frequency Analysis per sensor output", fontsize=16)
+
+
+    for i, col in enumerate(sensorWL_window.columns):
+
+        detrended_signal = detrend(sensorWL_window[col])
+        positive_freqs, positive_power = single_fft_analysis(detrended_signal, time_window)
+
+        ax[i].plot(positive_freqs, positive_power)
+        ax[i].set_title(col)
+        ax[i].set_xlabel("Frequency (Hz)")
+        ax[i].set_ylabel("Power")
+
+    for j in range(len(sensorWL_window.columns), len(ax)):
+        ax[j].axis('off')
+
+    plt.tight_layout()
+
+    # Construct full filename
+    filename = f"FFT_Sensor_Plots_t{currentTime}s.png"
+    full_path = os.path.join(downloads_path, filename)
+    # Save the figure
+    plt.savefig(full_path, dpi=300, bbox_inches='tight')
+    print(f"Figure saved to: {full_path}")
+
 
 plt.show()
 
