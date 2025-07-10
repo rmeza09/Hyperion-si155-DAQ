@@ -48,20 +48,20 @@ for i in range(0, 25):
     fig.suptitle("Frequency Analysis per sensor output", fontsize=16)
 
 
-    for i, col in enumerate(sensorWL_window.columns):
+    # for i, col in enumerate(sensorWL_window.columns):
 
-        detrended_signal = detrend(sensorWL_window[col])
-        positive_freqs, positive_power = single_fft_analysis(detrended_signal, time_window)
+    #     detrended_signal = detrend(sensorWL_window[col])
+    #     positive_freqs, positive_power = single_fft_analysis(detrended_signal, time_window)
 
-        ax[i].plot(positive_freqs, positive_power)
-        ax[i].set_title(col)
-        ax[i].set_xlabel("Frequency (Hz)")
-        ax[i].set_ylabel("Power")
+    #     ax[i].plot(positive_freqs, positive_power)
+    #     ax[i].set_title(col)
+    #     ax[i].set_xlabel("Frequency (Hz)")
+    #     ax[i].set_ylabel("Power")
 
-    for j in range(len(sensorWL_window.columns), len(ax)):
-        ax[j].axis('off')
+    # for j in range(len(sensorWL_window.columns), len(ax)):
+    #     ax[j].axis('off')
 
-    plt.tight_layout()
+    # plt.tight_layout()
 
     # Construct full filename
     filename = f"FFT_Sensor_Plots_t{currentTime}s.png"
