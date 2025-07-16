@@ -233,11 +233,79 @@ def find_prominent_peaks(freqs, power, min_freq=0, max_freq=2500, min_prominence
 
 
 
-def signal_detrend_analysis(filePathVibe, startTime, timeWindow, cutoff, plotSegments=False, plotFFT=False, saveFigures=False):
+# def signal_detrend_analysis(filePathVibe, startTime, timeWindow, cutoff, plotSegments=False, plotFFT=False, saveFigures=False):
 
+#     # Save location: your system's Downloads folder (cross-platform)
+#     downloads_path = os.path.join(os.path.expanduser("~"), "Downloads")
+    
+#     for i in range(0, timeWindow):
+#         currentTime = startTime + i   
+#         sensorWL_window, time_window = read_window(filePathVibe, start_sec=currentTime, end_sec=currentTime+1)
+
+#         print(sensorWL_window)
+#         print(time_window)
+
+#         if plotSegments:
+#             # Assuming df has 5 columns: df.columns = ['A', 'B', 'C', 'D', 'E']
+#             fig, axes = plt.subplots(nrows=3, ncols=2, figsize=(10, 10))  # 3x2 layout
+#             axes = axes.flatten()  # Flatten the 2D axes array for easy iteration
+#             fig.suptitle(f"Signal Detrending for Time Snip at t = {currentTime} to {currentTime+1}", fontsize=16)
+
+#             for i, col in enumerate(sensorWL_window.columns):
+#                 axes[i].plot(detrend(sensorWL_window[col]))
+#                 axes[i].set_title(col)
+
+#             # Hide the unused 6th subplot
+#             if len(sensorWL_window.columns) < 6:
+#                 axes[-1].axis('off')
+
+#         if plotFFT:
+#             fig, ax = plt.subplots(nrows=3, ncols=2, figsize=(12, 10))  # 3x2 layout
+#             ax = ax.flatten()  # Flatten to make it easier to iterate
+#             fig.suptitle("Frequency Analysis per sensor output", fontsize=16)
+
+#             fs = 5000  # sampling frequency, adjust as needed
+#             cutoff_freq = cutoff  # cutoff frequency for high-pass filter, adjust as needed
+#             for i, col in enumerate(sensorWL_window.columns):
+
+#                 detrended_signal = detrend(sensorWL_window[col])
+#                 filtered_signal = apply_highpass_filter(detrended_signal, cutoff_freq, fs, order=4)
+#                 positive_freqs, positive_power = welch(filtered_signal, fs=fs, nperseg=1024, noverlap=512)
+#                 #positive_freqs, positive_power = single_fft_analysis(filtered_signal, time_window)
+#                 peak_freqs, peak_powers = find_prominent_peaks(positive_freqs, positive_power, min_freq=0, max_freq=2500, min_prominence=0.15 * np.max(positive_power), top_n=6)
+#                 print(f"Top peaks for {col}: {peak_freqs}, Powers: {peak_powers}")
+
+#                 ax[i].plot(positive_freqs, positive_power)
+#                 ax[i].plot(peak_freqs, peak_powers, 'ro', label='Peaks')
+#                 ax[i].set_title(col)
+#                 ax[i].set_xlabel("Frequency (Hz)")
+#                 ax[i].set_ylabel("Power")
+#                 #ax[i].set_yscale('log')
+
+#             for j in range(len(sensorWL_window.columns), len(ax)):
+#                 ax[j].axis('off')
+
+#             plt.tight_layout()
+
+#         if saveFigures:
+#             # Construct full filename
+#             filename = f"FFT_Sensor_Plots_t{currentTime}s.png"
+#             full_path = os.path.join(downloads_path, filename)
+#             # Save the figure
+#             plt.savefig(full_path, dpi=300, bbox_inches='tight')
+#             print(f"Figure saved to: {full_path}")
+
+
+#     plt.show()
+
+
+def signal_detrend_analysis(filePathVibe, startTime, timeWindow, cutoff, plotSegments=False, plotFFT=False, saveFigures=False):
     # Save location: your system's Downloads folder (cross-platform)
     downloads_path = os.path.join(os.path.expanduser("~"), "Downloads")
     
+    # Store all peak frequencies here (1 row = 1 sec window; each row has 5x6 = 30 values)
+    peak_matrix = []
+
     for i in range(0, timeWindow):
         currentTime = startTime + i   
         sensorWL_window, time_window = read_window(filePathVibe, start_sec=currentTime, end_sec=currentTime+1)
@@ -260,42 +328,60 @@ def signal_detrend_analysis(filePathVibe, startTime, timeWindow, cutoff, plotSeg
                 axes[-1].axis('off')
 
         if plotFFT:
-            fig, ax = plt.subplots(nrows=3, ncols=2, figsize=(12, 10))  # 3x2 layout
-            ax = ax.flatten()  # Flatten to make it easier to iterate
+            fig, ax = plt.subplots(nrows=3, ncols=2, figsize=(12, 10))
+            ax = ax.flatten()
             fig.suptitle("Frequency Analysis per sensor output", fontsize=16)
 
-            fs = 5000  # sampling frequency, adjust as needed
-            cutoff_freq = cutoff  # cutoff frequency for high-pass filter, adjust as needed
-            for i, col in enumerate(sensorWL_window.columns):
+        fs = 5000
+        cutoff_freq = cutoff
+        peak_row = []
 
-                detrended_signal = detrend(sensorWL_window[col])
-                filtered_signal = apply_highpass_filter(detrended_signal, cutoff_freq, fs, order=4)
-                positive_freqs, positive_power = welch(filtered_signal, fs=fs, nperseg=1024, noverlap=512)
-                #positive_freqs, positive_power = single_fft_analysis(filtered_signal, time_window)
-                peak_freqs, peak_powers = find_prominent_peaks(positive_freqs, positive_power, min_freq=0, max_freq=2500, min_prominence=0.01, top_n=6)
+        for j, col in enumerate(sensorWL_window.columns):
+            detrended_signal = detrend(sensorWL_window[col])
+            filtered_signal = apply_highpass_filter(detrended_signal, cutoff_freq, fs, order=4)
+            positive_freqs, positive_power = welch(filtered_signal, fs=fs, nperseg=1024, noverlap=512)
+            
+            # Prominence is dynamic based on signal power scale
+            min_prom = 0.15 * np.max(positive_power)
+            peak_freqs, _ = find_prominent_peaks(
+                positive_freqs, positive_power,
+                min_freq=0, max_freq=2500,
+                min_prominence=min_prom,
+                top_n=6
+            )
 
-                ax[i].plot(positive_freqs, positive_power)
-                ax[i].plot(peak_freqs, peak_powers, 'ro', label='Peaks')
-                ax[i].set_title(col)
-                ax[i].set_xlabel("Frequency (Hz)")
-                ax[i].set_ylabel("Power")
-                #ax[i].set_yscale('log')
+            # Pad to 6 values if fewer peaks are found
+            padded = np.pad(peak_freqs, (0, 6 - len(peak_freqs)), constant_values=np.nan)
+            peak_row.extend(padded)
 
-            for j in range(len(sensorWL_window.columns), len(ax)):
-                ax[j].axis('off')
+            if plotFFT:
+                ax[j].plot(positive_freqs, positive_power)
+                ax[j].plot(peak_freqs, [_ for _ in _], 'ro', label='Peaks')
+                ax[j].set_title(col)
+                ax[j].set_xlabel("Frequency (Hz)")
+                ax[j].set_ylabel("Power")
 
+        peak_matrix.append(peak_row)
+
+        if plotFFT:
+            for k in range(len(sensorWL_window.columns), len(ax)):
+                ax[k].axis('off')
             plt.tight_layout()
+            if saveFigures:
+                filename = f"FFT_Sensor_Plots_t{currentTime}s.png"
+                full_path = os.path.join(downloads_path, filename)
+                plt.savefig(full_path, dpi=300, bbox_inches='tight')
+                print(f"Figure saved to: {full_path}")
+            
 
-        if saveFigures:
-            # Construct full filename
-            filename = f"FFT_Sensor_Plots_t{currentTime}s.png"
-            full_path = os.path.join(downloads_path, filename)
-            # Save the figure
-            plt.savefig(full_path, dpi=300, bbox_inches='tight')
-            print(f"Figure saved to: {full_path}")
-
+    # Create DataFrame and save to Excel
+    sensor_labels = list(sensorWL_window.columns)
+    col_names = [f"{label}_Peak{i+1}" for label in sensor_labels for i in range(6)]
+    peak_df = pd.DataFrame(peak_matrix, columns=col_names)
+    excel_filename = f"PeakFrequencies_{startTime}s_to_{startTime + timeWindow}s.xlsx"
+    excel_path = os.path.join(downloads_path, excel_filename)
+    peak_df.to_excel(excel_path, index=False)
+    print(f"Peak frequencies saved to: {excel_path}")
 
     plt.show()
-
-
-
+    plt.close()

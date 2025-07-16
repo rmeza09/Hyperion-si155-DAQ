@@ -34,7 +34,7 @@ filePathVibe = './DATA/LaRC_Data/LaRC_test8_run0030.txt'
 
 
 startTime = 125
-timeWindow = 25
+timeWindow = 15
 cutoff = 100
 dfVibe, timeSpanV, samplingFreqV = fileReader(filePathVibe, False, True, start_trim=startTime)
 signal_detrend_analysis(filePathVibe, startTime, timeWindow, cutoff, plotSegments=False, plotFFT=True, saveFigures=False)
