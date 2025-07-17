@@ -299,7 +299,7 @@ def find_prominent_peaks(freqs, power, min_freq=0, max_freq=2500, min_prominence
 #     plt.show()
 
 
-def signal_detrend_analysis(filePathVibe, startTime, timeWindow, cutoff, plotSegments=False, plotFFT=False, saveFigures=False):
+def signal_detrend_analysis(filePathVibe, startTime, timeWindow, cutoff, plotSegments=False, plotFFT=False, saveFreqs=False, saveFigures=False):
     # Save location: your system's Downloads folder (cross-platform)
     downloads_path = os.path.join(os.path.expanduser("~"), "Downloads")
     
@@ -373,15 +373,15 @@ def signal_detrend_analysis(filePathVibe, startTime, timeWindow, cutoff, plotSeg
                 plt.savefig(full_path, dpi=300, bbox_inches='tight')
                 print(f"Figure saved to: {full_path}")
             
-
-    # Create DataFrame and save to Excel
-    sensor_labels = list(sensorWL_window.columns)
-    col_names = [f"{label}_Peak{i+1}" for label in sensor_labels for i in range(6)]
-    peak_df = pd.DataFrame(peak_matrix, columns=col_names)
-    excel_filename = f"PeakFrequencies_{startTime}s_to_{startTime + timeWindow}s.xlsx"
-    excel_path = os.path.join(downloads_path, excel_filename)
-    peak_df.to_excel(excel_path, index=False)
-    print(f"Peak frequencies saved to: {excel_path}")
+    if saveFreqs:
+        # Create DataFrame and save to Excel
+        sensor_labels = list(sensorWL_window.columns)
+        col_names = [f"{label}_Peak{i+1}" for label in sensor_labels for i in range(6)]
+        peak_df = pd.DataFrame(peak_matrix, columns=col_names)
+        excel_filename = f"PeakFrequencies_{startTime}s_to_{startTime + timeWindow}s.xlsx"
+        excel_path = os.path.join(downloads_path, excel_filename)
+        peak_df.to_excel(excel_path, index=False)
+        print(f"Peak frequencies saved to: {excel_path}")
 
     plt.show()
     plt.close()

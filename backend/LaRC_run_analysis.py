@@ -7,14 +7,14 @@ from matplotlib.ticker import ScalarFormatter
 from FFT_Analysis_Functions import fileReader, read_window, signal_detrend_analysis
 
 
-# filePathVibe = './DATA/LaRC_Data/LaRC_test1_run0008.txt'
-# filePathVibe = './DATA/LaRC_Data/LaRC_test2_run0010.txt'
+#filePathVibe = './DATA/LaRC_Data/LaRC_test1_run0008.txt' #set startTime = 180 timewWindow = 20
+filePathVibe = './DATA/LaRC_Data/LaRC_test2_run0010.txt'
 # filePathVibe = './DATA/LaRC_Data/LaRC_test3_run0012_bad.txt'
 # filePathVibe = './DATA/LaRC_Data/LaRC_test4_run0022_noKuliteData.txt'
 # filePathVibe = './DATA/LaRC_Data/LaRC_test5_run0024.txt'
 # filePathVibe = './DATA/LaRC_Data/LaRC_test6_run0026.txt'
 # filePathVibe = './DATA/LaRC_Data/LaRC_test7_run0028.txt'
-filePathVibe = './DATA/LaRC_Data/LaRC_test8_run0030.txt'
+#filePathVibe = './DATA/LaRC_Data/LaRC_test8_run0030.txt'
 # filePathVibe = './DATA/LaRC_Data/LaRC_test9_run0032.txt'
 # filePathVibe = './DATA/LaRC_Data/LaRC_test10_run0034.txt'
 # filePathVibe = './DATA/LaRC_Data/LaRC_test11_run0036.txt'
@@ -33,8 +33,8 @@ filePathVibe = './DATA/LaRC_Data/LaRC_test8_run0030.txt'
 
 
 
-startTime = 125
-timeWindow = 25
+startTime = 210
+timeWindow = 40
 cutoff = 100
 dfVibe, timeSpanV, samplingFreqV = fileReader(filePathVibe, False, True, start_trim=startTime)
-signal_detrend_analysis(filePathVibe, startTime, timeWindow, cutoff, plotSegments=False, plotFFT=True, saveFigures=False)
+signal_detrend_analysis(filePathVibe, startTime, timeWindow, cutoff, plotSegments=False, plotFFT=True, saveFreqs=True, saveFigures=False)
