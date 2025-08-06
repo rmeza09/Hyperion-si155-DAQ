@@ -58,7 +58,7 @@ def fileReader(filePath, flip, plot, indivPlot, start_trim=0):
                 ax.yaxis.set_major_formatter(formatter)
 
                 plt.tight_layout()
-                plt.show()
+                
 
         else:
             fig, axis = plt.subplots(3, 2, figsize=(12, 8))  # 3 rows, 2 columns
