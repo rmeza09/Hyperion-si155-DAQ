@@ -6,7 +6,7 @@ from matplotlib.ticker import ScalarFormatter
 import os
 
 
-def fileReader(filePath, flip, plot, start_trim=0): 
+def fileReader(filePath, flip, plot, indivPlot, start_trim=0): 
     import pandas as pd
     import matplotlib.pyplot as plt
     from matplotlib.ticker import ScalarFormatter
@@ -37,31 +37,55 @@ def fileReader(filePath, flip, plot, start_trim=0):
     print('Number of Samples: ', dims[0], '\n')
 
     if plot:
-        fig, axis = plt.subplots(3, 2, figsize=(12, 8))  # 3 rows, 2 columns
 
-        for i in range(dims[1]):
-            row = i // 2
-            col = i % 2
-            data = sensorWL.iloc[:, i]
+        if indivPlot:
+            for i in range(dims[1]):
+                data = sensorWL.iloc[:, i]
 
-            if i % 2 == 1 and flip:
-                data *= -1
+                if i % 2 == 1 and flip:
+                    data *= -1
 
-            ax = axis[row, col]
-            ax.plot(time_in_seconds, data)
-            ax.set_xlabel('Time (s)')
-            ax.set_ylabel('Center Wavelength (nm)')
-            ax.set_title('Wavelength Change vs Time')
-            ax.grid(True)
-            formatter = ScalarFormatter(useMathText=False)
-            formatter.set_scientific(False)
-            formatter.set_useOffset(False)
-            ax.yaxis.set_major_formatter(formatter)
+                fig, ax = plt.subplots(figsize=(6, 4))
+                ax.plot(time_in_seconds, data)
+                ax.set_xlabel('Time (s)')
+                ax.set_ylabel('Center Wavelength (nm)')
+                ax.set_title(f'Sensor {i+1}: Wavelength Change vs Time')
+                ax.grid(True)
 
-        if dims[1] < 6:
-            axis[2, 1].axis('off')
+                formatter = ScalarFormatter(useMathText=False)
+                formatter.set_scientific(False)
+                formatter.set_useOffset(False)
+                ax.yaxis.set_major_formatter(formatter)
 
-        plt.tight_layout()
+                plt.tight_layout()
+                plt.show()
+
+        else:
+            fig, axis = plt.subplots(3, 2, figsize=(12, 8))  # 3 rows, 2 columns
+
+            for i in range(dims[1]):
+                row = i // 2
+                col = i % 2
+                data = sensorWL.iloc[:, i]
+
+                if i % 2 == 1 and flip:
+                    data *= -1
+
+                ax = axis[row, col]
+                ax.plot(time_in_seconds, data)
+                ax.set_xlabel('Time (s)')
+                ax.set_ylabel('Center Wavelength (nm)')
+                ax.set_title('Wavelength Change vs Time')
+                ax.grid(True)
+                formatter = ScalarFormatter(useMathText=False)
+                formatter.set_scientific(False)
+                formatter.set_useOffset(False)
+                ax.yaxis.set_major_formatter(formatter)
+
+            if dims[1] < 6:
+                axis[2, 1].axis('off')
+
+            plt.tight_layout()
 
     return sensorWL, time_in_seconds, samplingFreq
 
