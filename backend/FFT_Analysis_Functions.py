@@ -324,30 +324,31 @@ def find_prominent_peaks(freqs, power, min_freq=0, max_freq=2500, min_prominence
 
 
 def signal_detrend_analysis(filePathVibe, startTime, timeWindow, cutoff, plotSegments=False, plotFFT=False, saveFreqs=False, saveFigures=False):
-    # Save location: your system's Downloads folder (cross-platform)
+    
     downloads_path = os.path.join(os.path.expanduser("~"), "Downloads")
     
-    # Store all peak frequencies here (1 row = 1 sec window; each row has 5x6 = 30 values)
     peak_matrix = []
+    sensor_labels = []
 
     for i in range(0, timeWindow):
         currentTime = startTime + i   
         sensorWL_window, time_window = read_window(filePathVibe, start_sec=currentTime, end_sec=currentTime+1)
+        
+        if not sensor_labels:
+            sensor_labels = list(sensorWL_window.columns)
 
         print(sensorWL_window)
         print(time_window)
 
         if plotSegments:
-            # Assuming df has 5 columns: df.columns = ['A', 'B', 'C', 'D', 'E']
-            fig, axes = plt.subplots(nrows=3, ncols=2, figsize=(10, 10))  # 3x2 layout
-            axes = axes.flatten()  # Flatten the 2D axes array for easy iteration
+            fig, axes = plt.subplots(nrows=3, ncols=2, figsize=(10, 10))
+            axes = axes.flatten()
             fig.suptitle(f"Signal Detrending for Time Snip at t = {currentTime} to {currentTime+1}", fontsize=16)
 
             for i, col in enumerate(sensorWL_window.columns):
                 axes[i].plot(detrend(sensorWL_window[col]))
                 axes[i].set_title(col)
 
-            # Hide the unused 6th subplot
             if len(sensorWL_window.columns) < 6:
                 axes[-1].axis('off')
 
@@ -361,29 +362,57 @@ def signal_detrend_analysis(filePathVibe, startTime, timeWindow, cutoff, plotSeg
         peak_row = []
 
         for j, col in enumerate(sensorWL_window.columns):
-            detrended_signal = detrend(sensorWL_window[col])
+            original_signal = sensorWL_window[col]
+
+            detrended_signal = detrend(original_signal)
             filtered_signal = apply_highpass_filter(detrended_signal, cutoff_freq, fs, order=4)
             positive_freqs, positive_power = welch(filtered_signal, fs=fs, nperseg=1024, noverlap=512)
             
-            # Prominence is dynamic based on signal power scale
+            # <-- MODIFIED: Calculate stats from the FFT power spectrum
+            signal_mean = np.mean(positive_power)
+            signal_std = np.std(positive_power)
+            
+            # <-- NEW: Define the noise threshold
+            noise_threshold = signal_mean + (3 * signal_std)
+
+            # Find initial candidate peaks
             min_prom = 0.15 * np.max(positive_power)
-            peak_freqs, _ = find_prominent_peaks(
+            peak_freqs, peak_intesities = find_prominent_peaks(
                 positive_freqs, positive_power,
                 min_freq=0, max_freq=2500,
                 min_prominence=min_prom,
-                top_n=6
+                top_n=6 # Find the top 6 most prominent peaks initially
             )
+            
+            # <-- NEW: Filter peaks based on the noise threshold
+            significant_mask = peak_intesities >= noise_threshold
+            filtered_freqs = peak_freqs[significant_mask]
+            filtered_intensities = peak_intesities[significant_mask]
 
-            # Pad to 6 values if fewer peaks are found
-            padded = np.pad(peak_freqs, (0, 6 - len(peak_freqs)), constant_values=np.nan)
-            peak_row.extend(padded)
+            # <-- MODIFIED: Pad the *filtered* arrays to 6 values
+            padded_freqs = np.pad(filtered_freqs, (0, 6 - len(filtered_freqs)), constant_values=np.nan)
+            padded_intensities = np.pad(filtered_intensities, (0, 6 - len(filtered_intensities)), constant_values=np.nan)
+
+            interleaved_data = [val for pair in zip(padded_freqs, padded_intensities) for val in pair]
+            
+            peak_row.extend(interleaved_data)
+
+            # <-- MODIFIED: Append all three stats to the row
+            peak_row.append(signal_mean)
+            peak_row.append(signal_std)
+            peak_row.append(noise_threshold)
 
             if plotFFT:
                 ax[j].plot(positive_freqs, positive_power)
-                ax[j].plot(peak_freqs, [_ for _ in _], 'ro', label='Peaks')
+                # Plot a horizontal line for the noise threshold
+                ax[j].axhline(y=noise_threshold, color='r', linestyle='--', label=f'Threshold ({noise_threshold:.2e})')
+                # Plot only the significant peaks that passed the filter
+                ax[j].plot(filtered_freqs, filtered_intensities, 'ro', label='Significant Peaks')
                 ax[j].set_title(col)
                 ax[j].set_xlabel("Frequency (Hz)")
                 ax[j].set_ylabel("Power")
+                ax[j].legend()
+
 
         peak_matrix.append(peak_row)
 
@@ -398,14 +427,219 @@ def signal_detrend_analysis(filePathVibe, startTime, timeWindow, cutoff, plotSeg
                 print(f"Figure saved to: {full_path}")
             
     if saveFreqs:
-        # Create DataFrame and save to Excel
-        sensor_labels = list(sensorWL_window.columns)
-        col_names = [f"{label}_Peak{i+1}" for label in sensor_labels for i in range(6)]
+        # <-- MODIFIED: Update column names to include the threshold
+        col_names = []
+        for label in sensor_labels:
+            for i in range(6):
+                col_names.append(f"{label}_Peak{i+1}_Freq")
+                col_names.append(f"{label}_Peak{i+1}_Intensity")
+            col_names.append(f"{label}_Mean")
+            col_names.append(f"{label}_StdDev")
+            col_names.append(f"{label}_Threshold")
+
         peak_df = pd.DataFrame(peak_matrix, columns=col_names)
-        excel_filename = f"PeakFrequencies_{startTime}s_to_{startTime + timeWindow}s.xlsx"
+        
+        excel_filename = f"Peak_Analysis_Data_{startTime}s_to_{startTime + timeWindow}s.xlsx"
         excel_path = os.path.join(downloads_path, excel_filename)
         peak_df.to_excel(excel_path, index=False)
-        print(f"Peak frequencies saved to: {excel_path}")
+        print(f"Peak analysis data saved to: {excel_path}")
 
     plt.show()
     plt.close()
+
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from scipy.signal import spectrogram, detrend, butter, filtfilt
+
+# Assuming you have a read_window function defined elsewhere
+# def read_window(filePathVibe, start_sec, end_sec):
+#     ...
+#     return sensor_data, time_vector
+
+# --- Helper Function to apply the filter ---
+def apply_highpass_filter(signal, cutoff, fs, order=4):
+    """
+    Applies a high-pass Butterworth filter to a signal.
+
+    Args:
+        signal (np.array): The input signal.
+        cutoff (float): The cutoff frequency in Hz.
+        fs (int): The sampling frequency in Hz.
+        order (int): The order of the filter.
+
+    Returns:
+        np.array: The filtered signal.
+    """
+    nyquist = 0.5 * fs
+    normal_cutoff = cutoff / nyquist
+    b, a = butter(order, normal_cutoff, btype='high', analog=False)
+    filtered_signal = filtfilt(b, a, signal)
+    return filtered_signal
+
+# --- Main function, now with filtering ---
+def create_spectrograms(filePathVibe, startTime, timeWindow, fs=5000, cutoff_freq=100):
+    """
+    Loads, detrends, and high-pass filters a raw signal, then
+    generates a spectrogram for each sensor.
+    """
+    print(f"Loading {timeWindow} seconds of data starting from {startTime}s...")
+    endTime = startTime + timeWindow
+    try:
+        full_sensor_data, time_vector = read_window(
+            filePathVibe, start_sec=startTime, end_sec=endTime
+        )
+    except Exception as e:
+        print(f"Error reading data file: {e}")
+        return
+
+    print(f"Data loaded. Applying {cutoff_freq} Hz high-pass filter and generating spectrograms...")
+
+    for sensor_name in full_sensor_data.columns:
+        raw_signal = full_sensor_data[sensor_name].values
+        detrended_signal = detrend(raw_signal)
+
+        # <-- NEW: Apply the high-pass filter after detrending
+        filtered_signal = apply_highpass_filter(detrended_signal, cutoff=cutoff_freq, fs=fs)
+
+        # Generate the Spectrogram using the *filtered* signal
+        f, t, Sxx = spectrogram(
+            filtered_signal,
+            fs=fs,
+            nperseg=2048,
+            noverlap=1024
+        )
+
+        plt.figure(figsize=(12, 8))
+        Sxx_db = 10 * np.log10(Sxx)
+        plt.pcolormesh(t, f, Sxx_db, shading='gouraud', cmap='viridis')
+
+        plt.colorbar(label='Intensity (dB)')
+        plt.title(f'Spectrogram for Sensor: {sensor_name} (Filtered > {cutoff_freq} Hz)', fontsize=16)
+        plt.xlabel('Time (s)')
+        plt.ylabel('Frequency (Hz)')
+        plt.ylim(0, 2500)
+        
+
+
+# --- Main function for Welch-based Spectrogram ---
+def create_welch_spectrograms(filePathVibe, startTime, timeWindow, fs=5000, cutoff_freq=100):
+    """
+    Creates a spectrogram by manually applying Welch's method to sliding windows.
+    """
+    print(f"Loading {timeWindow} seconds of data starting from {startTime}s...")
+    endTime = startTime + timeWindow
+    full_sensor_data, _ = read_window(filePathVibe, start_sec=startTime, end_sec=endTime)
+
+    print("Data loaded. Generating Welch-based spectrogram for each sensor...")
+
+    # --- Spectrogram Parameters ---
+    window_duration_sec = 0.5  # Duration of each time-slice (e.g., 0.5 seconds)
+    step_duration_sec = 0.05   # How much to slide the window forward (e.g., 0.05 seconds)
+    
+    # Convert seconds to number of samples
+    window_samples = int(window_duration_sec * fs)
+    step_samples = int(step_duration_sec * fs)
+
+    for sensor_name in full_sensor_data.columns:
+        # --- Signal Preparation ---
+        raw_signal = full_sensor_data[sensor_name].values
+        detrended_signal = detrend(raw_signal)
+        filtered_signal = apply_highpass_filter(detrended_signal, cutoff=cutoff_freq, fs=fs)
+
+        # --- Manual Spectrogram Loop ---
+        spectrogram_data = []
+        time_steps = []
+        
+        start_index = 0
+        while start_index + window_samples <= len(filtered_signal):
+            # Extract a chunk of the signal
+            signal_chunk = filtered_signal[start_index : start_index + window_samples]
+            
+            # Run Welch's method on this small chunk
+            # nperseg is the length of FFT segments *within* the Welch calculation
+            f, Pxx = welch(signal_chunk, fs=fs, nperseg=1024)
+            
+            spectrogram_data.append(Pxx)
+            # The time for this slice is the center of the window
+            time_steps.append((start_index + window_samples / 2) / fs)
+            
+            # Slide the window forward
+            start_index += step_samples
+
+        # Convert collected data into a 2D array
+        Sxx = np.array(spectrogram_data).T  # Transpose so frequency is on y-axis
+
+        # --- Plotting ---
+        plt.figure(figsize=(12, 8))
+        Sxx_db = 10 * np.log10(Sxx)
+        
+        plt.pcolormesh(time_steps, f, Sxx_db, shading='gouraud', cmap='viridis')
+        
+        plt.colorbar(label='Intensity (dB)')
+        plt.title(f'Welch Spectrogram for Sensor: {sensor_name}', fontsize=16)
+        plt.xlabel('Time (s)')
+        plt.ylabel('Frequency (Hz)')
+        plt.ylim(0, 2500)
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from scipy.signal import detrend
+import pywt
+
+# Assume read_window and apply_highpass_filter are defined as in previous examples
+
+def create_wavelet_scalograms(filePathVibe, startTime, timeWindow, fs=5000, cutoff_freq=100):
+    """
+    Creates a scalogram for each sensor using a Continuous Wavelet Transform (CWT).
+    """
+    print(f"Loading {timeWindow} seconds of data starting from {startTime}s...")
+    endTime = startTime + timeWindow
+    full_sensor_data, time_vector = read_window(
+        filePathVibe, start_sec=startTime, end_sec=endTime
+    )
+
+    print("Data loaded. Generating wavelet scalogram for each sensor...")
+
+    # --- Wavelet Parameters ---
+    # The wavelet to use. Complex Morlet ('cmor') is great for time-frequency analysis.
+    wavelet_name = 'cmor1.5-1.0'
+    # Define the range of scales to analyze. This corresponds to the frequency range.
+    # A smaller number gives higher frequencies, a larger number gives lower frequencies.
+    scales = np.arange(10, 250)
+
+    for sensor_name in full_sensor_data.columns:
+        # --- Signal Preparation ---
+        raw_signal = full_sensor_data[sensor_name].values
+        detrended_signal = detrend(raw_signal)
+        filtered_signal = apply_highpass_filter(detrended_signal, cutoff=cutoff_freq, fs=fs)
+
+        # --- Step 1: Perform the Continuous Wavelet Transform (CWT) ---
+        # The PyWavelets library conveniently returns the coefficients and corresponding frequencies.
+        coefficients, frequencies = pywt.cwt(
+            filtered_signal,
+            scales,
+            wavelet_name,
+            sampling_period=1/fs
+        )
+        
+        # --- Step 2: Plot the Scalogram ---
+        plt.figure(figsize=(12, 8))
+        
+        # The magnitude of the complex coefficients represents the intensity
+        plt.pcolormesh(
+            time_vector,
+            frequencies,
+            np.abs(coefficients),
+            shading='gouraud',
+            cmap='viridis'
+        )
+
+        plt.colorbar(label='Magnitude')
+        plt.title(f'Wavelet Scalogram for Sensor: {sensor_name}', fontsize=16)
+        plt.xlabel('Time (s)')
+        plt.ylabel('Frequency (Hz)')
+        plt.ylim(cutoff_freq, 2500) # Show frequencies above our cutoff
+        plt.show()
