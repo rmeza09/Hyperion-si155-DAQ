@@ -605,10 +605,10 @@ def create_wavelet_scalograms(filePathVibe, startTime, timeWindow, fs=5000, cuto
 
     # --- Wavelet Parameters ---
     # The wavelet to use. Complex Morlet ('cmor') is great for time-frequency analysis.
-    wavelet_name = 'cmor1.5-1.0'
+    wavelet_name = 'cmor8-1.0'
     # Define the range of scales to analyze. This corresponds to the frequency range.
     # A smaller number gives higher frequencies, a larger number gives lower frequencies.
-    scales = np.arange(10, 250)
+    scales = np.arange(1, 300)
 
     for sensor_name in full_sensor_data.columns:
         # --- Signal Preparation ---
@@ -637,7 +637,7 @@ def create_wavelet_scalograms(filePathVibe, startTime, timeWindow, fs=5000, cuto
             cmap='viridis'
         )
 
-        plt.colorbar(label='Magnitude')
+        plt.colorbar(label='Log Magnitude')
         plt.title(f'Wavelet Scalogram for Sensor: {sensor_name}', fontsize=16)
         plt.xlabel('Time (s)')
         plt.ylabel('Frequency (Hz)')

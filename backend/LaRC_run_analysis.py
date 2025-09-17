@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from scipy.signal import find_peaks, windows, welch, detrend
 from matplotlib.ticker import ScalarFormatter
 
-from FFT_Analysis_Functions import fileReader, read_window, signal_detrend_analysis, create_spectrograms, create_welch_spectrograms
+from FFT_Analysis_Functions import fileReader, read_window, signal_detrend_analysis, create_spectrograms, create_welch_spectrograms, create_wavelet_scalograms
 
 
 # filePathVibe = './DATA/LaRC_Data/LaRC_test1_run0008.txt' #set startTime = 180 timewWindow = 20
@@ -41,6 +41,8 @@ dfVibe, timeSpanV, samplingFreqV = fileReader(filePathVibe, False, True, True, s
 #     cutoff_freq=10
 # )
 
-create_welch_spectrograms(filePathVibe=filePathVibe, startTime =95, timeWindow=15, fs=5000, cutoff_freq=100)
+#create_welch_spectrograms(filePathVibe=filePathVibe, startTime =95, timeWindow=15, fs=5000, cutoff_freq=100)
+
+create_wavelet_scalograms(filePathVibe=filePathVibe, startTime =95, timeWindow=1, fs=5000, cutoff_freq=100)
 
 plt.show()
