@@ -512,14 +512,31 @@ def create_spectrograms(filePathVibe, startTime, timeWindow, fs=5000, cutoff_fre
         )
 
         plt.figure(figsize=(12, 8))
+
+        # 1. Correct the decibel conversion
         Sxx_db = 10 * np.log10(Sxx)
-        plt.pcolormesh(t, f, Sxx_db, shading='gouraud', cmap='viridis')
+
+        # 3. (Optional) Set manual color limits to further enhance contrast
+        # This dedicates the full colormap to the 5th-95th percentile of intensities
+        vmin = np.percentile(Sxx_db, 15)
+        vmax = np.percentile(Sxx_db, 100)
+
+        # 2. Plot with a high-contrast colormap and the new parameters
+        plt.pcolormesh(
+            t, f, Sxx_db,
+            shading='gouraud',
+            cmap='viridis', # Try 'inferno', 'magma', or 'jet'
+            vmin=vmin,
+            vmax=vmax
+        )
 
         plt.colorbar(label='Intensity (dB)')
-        plt.title(f'Spectrogram for Sensor: {sensor_name} (Filtered > {cutoff_freq} Hz)', fontsize=16)
+        plt.title(f'Spectrogram for Sensor: {sensor_name} (Filtered > 10 Hz)', fontsize=16)
         plt.xlabel('Time (s)')
         plt.ylabel('Frequency (Hz)')
+        # Set a clear y-axis limit
         plt.ylim(0, 2500)
+        
         
 
 
